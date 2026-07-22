@@ -2,6 +2,7 @@
 """FraudCell Platform Automated Smoke Test.
 
 Uses Python standard library only (no external dependencies).
+Validates HTTP endpoints, response envelopes, platform health, and port isolation.
 """
 
 from __future__ import annotations
@@ -80,12 +81,20 @@ def main() -> int:
         ("Kong Gateway -> Gamification Ready", "http://localhost:8000/api/v1/game/ready"),
     ]
 
-    print("\n🔍 1. HTTP Endpoint Checks")
+    print("\n🔍 1. HTTP Endpoint & Response Envelope Checks")
     print("-" * 60)
     for name, url in tests:
-        ok, msg, status, _ = check_url(url)
+        ok, msg, status, json_body = check_url(url)
         if ok:
-            print(f"[{GREEN}PASS{RESET}] {name:<40} -> {msg}")
+            # Check envelope format for microservice JSON endpoints
+            if json_body and "success" in json_body:
+                if json_body.get("success") is True:
+                    print(f"[{GREEN}PASS{RESET}] {name:<40} -> {msg} (Envelope: success=true)")
+                else:
+                    print(f"[{RED}FAIL{RESET}] {name:<40} -> {msg} (Envelope: success=false)")
+                    all_passed = False
+            else:
+                print(f"[{GREEN}PASS{RESET}] {name:<40} -> {msg}")
         else:
             print(f"[{RED}FAIL{RESET}] {name:<40} -> {msg}")
             all_passed = False

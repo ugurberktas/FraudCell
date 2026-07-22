@@ -68,11 +68,16 @@ def main() -> int:
             print(f"[{RED}FAIL{RESET}] Failed to execute docker compose stop ai-service")
             return 1
         print("   ai-service container stopped.")
-        time.sleep(2)
 
-        # Step 2: Verify Kong AI route returns 502 or 503
+        # Step 2: Verify Kong AI route returns 502 or 503 (with short retry loop for TCP tear-down)
         print("\n2. Checking Kong Gateway AI route (expecting 502 or 503)...")
-        status, _ = fetch_url("http://localhost:8000/api/v1/ai/health")
+        status = None
+        for attempt in range(1, 6):
+            status, _ = fetch_url("http://localhost:8000/api/v1/ai/health")
+            if status in (502, 503):
+                break
+            time.sleep(1)
+
         if status in (502, 503):
             print(f"[{GREEN}PASS{RESET}] Kong Gateway AI route returned HTTP {status}")
         else:
@@ -87,11 +92,17 @@ def main() -> int:
             ("Gamification", "http://localhost:8000/api/v1/game/health"),
         ]
         for name, url in other_routes:
-            status, _ = fetch_url(url)
-            if status == 200:
+            res_status = None
+            for _ in range(3):
+                res_status, _ = fetch_url(url)
+                if res_status == 200:
+                    break
+                time.sleep(1)
+
+            if res_status == 200:
                 print(f"[{GREEN}PASS{RESET}] {name:<15} route returned HTTP 200")
             else:
-                print(f"[{RED}FAIL{RESET}] {name:<15} route expected 200, got HTTP {status}")
+                print(f"[{RED}FAIL{RESET}] {name:<15} route expected 200, got HTTP {res_status}")
                 test_passed = False
 
         # Step 4: Verify Frontend /api/platform-health

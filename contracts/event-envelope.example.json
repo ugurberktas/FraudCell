@@ -1,0 +1,14 @@
+{
+  "event_id": "c1510888-5812-45b4-83fa-9d1d83e36c0a",
+  "event_type": "transaction.created",
+  "event_version": 1,
+  "occurred_at": "2026-07-22T23:50:00Z",
+  "producer": "transaction-service",
+  "correlation_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "payload": {
+    "transaction_number": "TRX-2026-000123",
+    "user_id": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+    "amount": 1250.50,
+    "type": "TRANSFER"
+  }
+}

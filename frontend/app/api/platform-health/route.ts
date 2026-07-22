@@ -41,13 +41,16 @@ async function checkServiceHealth(
       };
     }
 
-    const data = await res.json();
-    if (data && data.status === "healthy") {
+    const json = await res.json();
+    // Envelope structure: { success: true, data: { status: "healthy", version: "0.1.0" }, error: null }
+    const healthData = json?.data || json;
+
+    if (healthData && healthData.status === "healthy") {
       return {
         name: config.name,
         displayName: config.displayName,
         status: "healthy",
-        version: data.version || "0.1.0",
+        version: healthData.version || "0.1.0",
         checkedAt,
       };
     }

@@ -1,18 +1,16 @@
+"""Tests for GET /health with envelope structure."""
 from fastapi.testclient import TestClient
-
 from app.main import app
 
 client = TestClient(app)
 
 
-def test_health_returns_200() -> None:
+def test_health_returns_200_envelope() -> None:
     response = client.get("/health")
     assert response.status_code == 200
-
-
-def test_health_response_schema() -> None:
-    response = client.get("/health")
     body = response.json()
-    assert body["status"] == "healthy"
-    assert body["service"] == "transaction-service"
-    assert body["version"] == "0.1.0"
+    assert body["success"] is True
+    assert body["error"] is None
+    assert body["data"]["status"] == "healthy"
+    assert body["data"]["service"] == "transaction-service"
+    assert body["data"]["version"] == "0.1.0"

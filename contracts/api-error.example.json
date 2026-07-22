@@ -1,0 +1,11 @@
+{
+  "success": false,
+  "data": null,
+  "error": {
+    "code": "RESOURCE_NOT_FOUND",
+    "message": "Açıklayıcı mesaj",
+    "details": {
+      "resource_id": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "success": true,
+  "data": {
+    "id": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+    "service_name": "identity-service",
+    "version": "0.1.0"
+  },
+  "error": null
+}

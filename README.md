@@ -1,13 +1,23 @@
 # FraudCell
 
 > **Infrastructure Status:** ⚠️ **Skeleton & Infrastructure Baseline Completed.**  
-> This monorepo currently contains the production-grade containerized microservices infrastructure, database connections, API gateway routing, message queue & cache topology, Next.js frontend, and automated testing framework. Business domain logic, database tables, and message handlers will be added in subsequent phases.
+> This monorepo currently contains the production-grade containerized microservices infrastructure, database connections, API gateway routing, message queue & cache topology, Next.js frontend, standardized contract envelopes, and automated testing framework. Business domain logic, database tables, and message handlers will be added in subsequent phases.
 
 ---
 
 ## 🎯 About FraudCell
 
 **FraudCell** is a distributed, event-driven fraud detection platform designed for high-throughput financial transaction monitoring, real-time AI risk evaluation, identity verification, and analyst gamification.
+
+---
+
+## 📐 Standards & Technical Contracts
+
+- 📄 **API Conventions Standard:** [`docs/standards/API_CONVENTIONS.md`](file:///Users/ugurberktas/Desktop/FraudCell/docs/standards/API_CONVENTIONS.md)
+- 📄 **Domain Conventions Standard:** [`docs/standards/DOMAIN_CONVENTIONS.md`](file:///Users/ugurberktas/Desktop/FraudCell/docs/standards/DOMAIN_CONVENTIONS.md)
+- 📄 **Security Conventions Standard:** [`docs/standards/SECURITY_CONVENTIONS.md`](file:///Users/ugurberktas/Desktop/FraudCell/docs/standards/SECURITY_CONVENTIONS.md)
+- ⚡ **Domain Event Catalog & Specifications:** [`EVENTS.md`](file:///Users/ugurberktas/Desktop/FraudCell/EVENTS.md)
+- 🔍 **Contract Validation Command:** `python3 scripts/validate_contracts.py`
 
 ---
 
@@ -81,7 +91,7 @@ flowchart TD
 - **API Gateway:** Kong 3.7 (DB-less declarative mode)
 - **Messaging & Cache:** RabbitMQ 3.13 (Management Alpine), Redis 7 (Alpine)
 - **Frontend:** Next.js 14 (App Router, Standalone build), TypeScript, Vanilla CSS
-- **Testing:** `pytest`, `httpx`, Custom Python Smoke & Fault Isolation test suite
+- **Testing:** `pytest`, `httpx`, Custom Python Contract Validator, Smoke & Fault Isolation test suite
 
 ---
 
@@ -126,28 +136,28 @@ docker compose up -d --build
 
 ## 🧪 Automated Testing & Verification
 
-### 1. Unit & Integration Tests (Pytest)
+### 1. Contract Validation
+Validates all JSON API response examples, domain enums, and event envelopes:
+```bash
+python3 scripts/validate_contracts.py
+```
 
+### 2. Unit & Integration Tests (Pytest)
 Run test suites across all 4 microservices:
-
 ```bash
 for svc in identity-service transaction-service ai-service gamification-service; do
   cd services/$svc && .venv/bin/pytest tests/ -v && cd ../..
 done
 ```
 
-### 2. Automated Smoke Test
-
+### 3. Automated Smoke Test
 Validates frontend, gateway routes, JSON payload integrity, and port isolation:
-
 ```bash
 python3 scripts/smoke_test.py
 ```
 
-### 3. Automated Fault Isolation Test
-
+### 4. Automated Fault Isolation Test
 Simulates `ai-service` failure, verifies gateway 502/503 isolation, ensures other services remain active, and verifies automatic recovery:
-
 ```bash
 python3 scripts/fault_test.py
 ```

@@ -1,0 +1,47 @@
+{
+  "roles": [
+    "CUSTOMER",
+    "ANALYST",
+    "SUPERVISOR",
+    "ADMIN"
+  ],
+  "transaction_types": [
+    "ODEME",
+    "TRANSFER",
+    "FATURA",
+    "CEKIM"
+  ],
+  "fraud_types": [
+    "CALINTI_KART",
+    "HESAP_ELE_GECIRME",
+    "PARA_AKLAMA",
+    "SUPHELI_DAVRANIS",
+    "TEMIZ"
+  ],
+  "ai_decisions": [
+    "ONAY",
+    "INCELEME",
+    "BLOK"
+  ],
+  "risk_levels": [
+    "DUSUK",
+    "ORTA",
+    "YUKSEK",
+    "KRITIK",
+    "BELIRSIZ"
+  ],
+  "case_statuses": [
+    "YENI",
+    "ATANDI",
+    "INCELENIYOR",
+    "MUSTERI_DOGRULAMA",
+    "ONAYLANDI",
+    "BLOKLANDI",
+    "KAPANDI"
+  ],
+  "customer_responses": [
+    "BEN_YAPTIM",
+    "BEN_YAPMADIM",
+    "YANIT_YOK"
+  ]
+}

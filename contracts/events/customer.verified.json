@@ -1,0 +1,13 @@
+{
+  "event_id": "11112222-3333-4444-5555-666677778888",
+  "event_type": "customer.verified",
+  "event_version": 1,
+  "occurred_at": "2026-07-22T23:56:30Z",
+  "producer": "transaction-service",
+  "correlation_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "payload": {
+    "customer_id": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+    "verification_channel": "SMS_OTP",
+    "response": "BEN_YAPTIM"
+  }
+}

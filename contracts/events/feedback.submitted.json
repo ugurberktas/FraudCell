@@ -1,0 +1,14 @@
+{
+  "event_id": "33334444-5555-6666-7777-888899990000",
+  "event_type": "feedback.submitted",
+  "event_version": 1,
+  "occurred_at": "2026-07-22T23:57:30Z",
+  "producer": "transaction-service",
+  "correlation_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "payload": {
+    "feedback_id": "44445555-6666-7777-8888-999900001111",
+    "customer_id": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+    "score": 5,
+    "comments": "Hızlı doğrulama için teşekkürler."
+  }
+}

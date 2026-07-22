@@ -1,0 +1,14 @@
+{
+  "event_id": "e48841cc-9012-4ef8-7777-111122223333",
+  "event_type": "case.decision_made",
+  "event_version": 1,
+  "occurred_at": "2026-07-22T23:55:00Z",
+  "producer": "transaction-service",
+  "correlation_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "payload": {
+    "case_id": "e48841cc-9012-4ef8-7777-111122223333",
+    "analyst_id": "f59952dd-3456-4ef8-6666-444455556666",
+    "decision": "BLOKLANDI",
+    "fraud_type": "CALINTI_KART"
+  }
+}
