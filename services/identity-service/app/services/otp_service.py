@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.common.exceptions import AppException
 from app.core.config import settings
-from app.models.otp_challenge import OtpChallenge
+from app.models.otp_challenge import OtpChallenge, OtpPurpose
 from app.repositories.otp_repository import OtpRepository
 
 
@@ -19,11 +19,15 @@ class OtpService:
         self.session = session
         self.repository = repository or OtpRepository(session)
 
-    def request_challenge(self, gsm: str) -> OtpChallenge:
+    def request_challenge(
+        self, gsm: str, purpose: OtpPurpose = OtpPurpose.REGISTER
+    ) -> OtpChallenge:
         now = datetime.now(timezone.utc)
         try:
-            self.repository.invalidate_unconsumed(gsm, now)
-            challenge = self.repository.create(gsm=gsm, expires_at=now + OTP_TTL)
+            self.repository.invalidate_unconsumed(gsm, purpose, now)
+            challenge = self.repository.create(
+                gsm=gsm, purpose=purpose, expires_at=now + OTP_TTL
+            )
             self.session.commit()
             self.session.refresh(challenge)
             return challenge
@@ -31,8 +35,15 @@ class OtpService:
             self.session.rollback()
             raise
 
-    def verify(self, gsm: str, supplied_code: str, now: datetime) -> OtpChallenge:
-        challenge = self.repository.get_latest_for_update(gsm)
+    def verify(
+        self,
+        gsm: str,
+        supplied_code: str,
+        now: datetime,
+        purpose: OtpPurpose = OtpPurpose.REGISTER,
+        commit_failure: bool = True,
+    ) -> OtpChallenge:
+        challenge = self.repository.get_latest_for_update(gsm, purpose)
         if challenge is None or challenge.consumed_at is not None:
             raise AppException("OTP_INVALID", "OTP code is invalid", status_code=400)
         expires_at = challenge.expires_at
@@ -47,6 +58,7 @@ class OtpService:
             challenge.failed_attempts += 1
             if challenge.failed_attempts >= MAX_FAILED_ATTEMPTS:
                 challenge.consumed_at = now
-            self.session.commit()
+            if commit_failure:
+                self.session.commit()
             raise AppException("OTP_INVALID", "OTP code is invalid", status_code=400)
         return challenge

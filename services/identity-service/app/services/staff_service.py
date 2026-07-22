@@ -11,6 +11,7 @@ from app.models.user import User, UserRole
 from app.repositories.staff_repository import StaffRepository
 from app.schemas.staff import StaffCreate, StaffResponse, StaffRole
 from app.security.passwords import hash_password, validate_password_policy
+from app.services.audit_service import AuditAction, AuditResult, AuditService
 
 
 _DUPLICATE_MESSAGE = "A staff account with the provided email already exists"
@@ -29,13 +30,23 @@ class StaffService:
         self.session = session
         self.repository = repository or StaffRepository(session)
 
-    def create_staff(self, request: StaffCreate) -> StaffResponse:
+    def create_staff(
+        self,
+        request: StaffCreate,
+        *,
+        actor_user_id=None,
+        ip_address: str | None = None,
+    ) -> StaffResponse:
         try:
             if self.repository.get_by_email(str(request.email)) is not None:
                 raise AppException(
                     "STAFF_ALREADY_EXISTS", _DUPLICATE_MESSAGE, status_code=409
                 )
-            return self._create_and_commit(request)
+            return self._create_and_commit(
+                request,
+                actor_user_id=actor_user_id,
+                ip_address=ip_address,
+            )
         except AppException:
             self.session.rollback()
             raise
@@ -85,7 +96,13 @@ class StaffService:
             self.session.rollback()
             raise
 
-    def _create_and_commit(self, request: StaffCreate) -> StaffResponse:
+    def _create_and_commit(
+        self,
+        request: StaffCreate,
+        *,
+        actor_user_id=None,
+        ip_address: str | None = None,
+    ) -> StaffResponse:
         validate_password_policy(request.password)
         password_hash = hash_password(request.password)
         user = self.repository.create_staff(
@@ -98,6 +115,16 @@ class StaffService:
             regions=request.regions,
             max_active_cases=request.max_active_cases,
         )
+        if actor_user_id is not None:
+            AuditService(self.session).record(
+                actor_user_id=actor_user_id,
+                action=AuditAction.STAFF_ACCOUNT_CREATED,
+                result=AuditResult.SUCCESS,
+                ip_address=ip_address,
+                resource_type="USER",
+                resource_id=str(user.id),
+                details={"created_role": user.role.value},
+            )
         self.session.commit()
         self.session.refresh(user)
         return self._to_response(user)

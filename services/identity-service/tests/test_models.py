@@ -1,7 +1,10 @@
 """Tests for Identity Service models, metadata, relationships, and migration presence."""
 from pathlib import Path
 from sqlalchemy import JSON, UniqueConstraint
-from app.models import AuditLog, Base, OtpChallenge, RefreshToken, StaffProfile, User, UserRole
+from pydantic import ValidationError
+import pytest
+from app.core.config import Settings
+from app.models import AuditLog, Base, OtpChallenge, OtpPurpose, RefreshToken, StaffProfile, User, UserRole
 
 
 def test_expected_tables_in_metadata() -> None:
@@ -88,3 +91,31 @@ def test_user_name_not_null_migration_has_upgrade_and_downgrade() -> None:
     assert "def downgrade()" in source
     assert source.count("nullable=False") == 2
     assert source.count("nullable=True") == 2
+
+
+def test_auth_foundation_metadata_and_migration() -> None:
+    otp_table = Base.metadata.tables["otp_challenges"]
+    refresh_table = Base.metadata.tables["refresh_tokens"]
+    assert "purpose" in otp_table.columns
+    assert OtpPurpose.REGISTER == "REGISTER"
+    assert OtpPurpose.LOGIN == "LOGIN"
+    assert refresh_table.columns["token_hash"].unique is True
+
+    migration_path = (
+        Path(__file__).resolve().parent.parent
+        / "alembic"
+        / "versions"
+        / "003_auth_token_foundation.py"
+    )
+    source = migration_path.read_text(encoding="utf-8")
+    assert 'down_revision: Union[str, None] = "002_require_user_names"' in source
+    assert "def upgrade()" in source
+    assert "def downgrade()" in source
+    assert 'server_default="REGISTER"' in source
+    assert "unique=True" in source
+
+
+def test_production_rejects_unsafe_jwt_secret() -> None:
+    for unsafe_secret in ("short", "CHANGE_ME_WITH_A_RANDOM_32_PLUS_CHARACTER_SECRET"):
+        with pytest.raises(ValidationError, match="JWT_SECRET"):
+            Settings(environment="production", jwt_secret=unsafe_secret)
