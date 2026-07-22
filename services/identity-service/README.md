@@ -22,6 +22,35 @@ Handles user identity, authentication, and user metadata for FraudCell.
 | `REDIS_URL` | `redis://...` | Redis connection URL |
 | `DEMO_OTP_CODE` | `1234` | Demo-only OTP code (never stored or returned) |
 
+## Staff password security
+
+Staff passwords are hashed with Argon2id and plaintext passwords are never stored or
+returned. Passwords must contain at least eight characters, one uppercase letter,
+one digit, and one non-whitespace special character.
+
+There is intentionally no public staff-creation endpoint yet. An Admin-only HTTP
+endpoint will be added after JWT authentication and RBAC are available.
+
+## Bootstrap the first Admin
+
+Set all four variables to deployment-specific values (do not commit real secrets):
+
+- `BOOTSTRAP_ADMIN_FIRST_NAME`
+- `BOOTSTRAP_ADMIN_LAST_NAME`
+- `BOOTSTRAP_ADMIN_EMAIL`
+- `BOOTSTRAP_ADMIN_PASSWORD`
+
+Run the explicit, idempotent CLI command inside the Identity Service container:
+
+```bash
+docker compose run --rm \
+  -e BOOTSTRAP_ADMIN_FIRST_NAME='Initial' \
+  -e BOOTSTRAP_ADMIN_LAST_NAME='Admin' \
+  -e BOOTSTRAP_ADMIN_EMAIL='admin@example.com' \
+  -e BOOTSTRAP_ADMIN_PASSWORD='<replace-with-a-strong-password>' \
+  identity-service python -m app.cli.bootstrap_admin
+```
+
 ## Running Locally
 
 ```bash
