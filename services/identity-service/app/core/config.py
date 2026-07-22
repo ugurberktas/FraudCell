@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://user:password@localhost:5432/identity_db"
     rabbitmq_url: str = "amqp://guest:guest@localhost:5672/"
     redis_url: str = "redis://localhost:6379/0"
+    demo_otp_code: str = "1234"
 
 
 settings = Settings()

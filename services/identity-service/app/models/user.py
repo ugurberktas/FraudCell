@@ -27,8 +27,8 @@ class User(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    first_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    last_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    first_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    last_name: Mapped[str] = mapped_column(String(100), nullable=False)
     gsm: Mapped[str | None] = mapped_column(String(30), nullable=True, index=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)

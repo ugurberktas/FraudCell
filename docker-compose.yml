@@ -97,9 +97,10 @@ services:
       DATABASE_URL: "postgresql+psycopg://${IDENTITY_DB_USER:-identity_user}:${IDENTITY_DB_PASSWORD:-identity_pass}@identity-db:5432/${IDENTITY_DB_NAME:-identity_db}"
       RABBITMQ_URL: "amqp://${RABBITMQ_USER:-rabbit}:${RABBITMQ_PASSWORD:-rabbit_pass}@rabbitmq:5672/"
       REDIS_URL: "redis://redis:6379/0"
+      DEMO_OTP_CODE: "${DEMO_OTP_CODE:-1234}"
     depends_on:
-      identity-db:
-        condition: service_healthy
+      identity-migrate:
+        condition: service_completed_successfully
     networks:
       - platform-network
       - identity-network
@@ -110,6 +111,19 @@ services:
       retries: 5
       start_period: 15s
     restart: unless-stopped
+
+  identity-migrate:
+    build:
+      context: ./services/identity-service
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${IDENTITY_DB_USER:-identity_user}:${IDENTITY_DB_PASSWORD:-identity_pass}@identity-db:5432/${IDENTITY_DB_NAME:-identity_db}"
+    depends_on:
+      identity-db:
+        condition: service_healthy
+    networks:
+      - identity-network
+    restart: "no"
 
   identity-db:
     image: postgres:16-alpine

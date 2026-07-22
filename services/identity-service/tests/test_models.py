@@ -67,3 +67,24 @@ def test_alembic_migration_file_exists() -> None:
     )
     assert migration_path.exists()
     assert migration_path.is_file()
+
+
+def test_user_names_are_required_by_model() -> None:
+    user_table = Base.metadata.tables["users"]
+    assert user_table.columns["first_name"].nullable is False
+    assert user_table.columns["last_name"].nullable is False
+
+
+def test_user_name_not_null_migration_has_upgrade_and_downgrade() -> None:
+    migration_path = (
+        Path(__file__).resolve().parent.parent
+        / "alembic"
+        / "versions"
+        / "002_require_user_names.py"
+    )
+    source = migration_path.read_text(encoding="utf-8")
+    assert 'down_revision: Union[str, None] = "001_initial_identity_schema"' in source
+    assert "def upgrade()" in source
+    assert "def downgrade()" in source
+    assert source.count("nullable=False") == 2
+    assert source.count("nullable=True") == 2

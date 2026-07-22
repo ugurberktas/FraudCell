@@ -2,7 +2,9 @@
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi.encoders import jsonable_encoder
 
+from app.api.routes.customers import router as customers_router
 from app.common.exceptions import AppException
 from app.common.middleware import RequestIDMiddleware
 from app.common.responses import error_response, success_response
@@ -12,6 +14,7 @@ from app.db.session import check_db_connection
 app = FastAPI(title=settings.service_name, version=settings.version)
 
 app.add_middleware(RequestIDMiddleware)
+app.include_router(customers_router)
 
 
 def get_request_id_headers(request: Request) -> dict[str, str]:
@@ -36,7 +39,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         code="VALIDATION_ERROR",
         message="Request validation failed",
         status_code=422,
-        details={"errors": exc.errors()},
+        details={"errors": jsonable_encoder(exc.errors())},
         headers=get_request_id_headers(request),
     )
 

@@ -8,6 +8,8 @@ Handles user identity, authentication, and user metadata for FraudCell.
 |---|---|---|---|
 | `GET` | `/health` | Liveness check (Independent of Database) | `200 OK` |
 | `GET` | `/ready` | Readiness check (Executes `SELECT 1` on `identity-db`) | `200 OK` (connected) / `503 Service Unavailable` |
+| `POST` | `/customers/otp/request` | Create a five-minute customer OTP challenge | `200 OK` |
+| `POST` | `/customers/register` | Register a customer using GSM and OTP | `201 Created` |
 
 ## Environment Variables
 
@@ -18,6 +20,7 @@ Handles user identity, authentication, and user metadata for FraudCell.
 | `DATABASE_URL` | `postgresql+psycopg://...` | PostgreSQL connection URL |
 | `RABBITMQ_URL` | `amqp://...` | RabbitMQ connection URL |
 | `REDIS_URL` | `redis://...` | Redis connection URL |
+| `DEMO_OTP_CODE` | `1234` | Demo-only OTP code (never stored or returned) |
 
 ## Running Locally
 
