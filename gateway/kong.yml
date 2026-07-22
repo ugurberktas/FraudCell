@@ -1,0 +1,51 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: identity-service
+    url: http://identity-service:8000
+    connect_timeout: 5000
+    read_timeout: 60000
+    write_timeout: 60000
+    routes:
+      - name: identity-route
+        paths:
+          - /api/v1/auth
+        strip_path: true
+        preserve_host: false
+
+  - name: transaction-service
+    url: http://transaction-service:8000
+    connect_timeout: 5000
+    read_timeout: 60000
+    write_timeout: 60000
+    routes:
+      - name: transaction-route
+        paths:
+          - /api/v1/transactions
+        strip_path: true
+        preserve_host: false
+
+  - name: ai-service
+    url: http://ai-service:8000
+    connect_timeout: 5000
+    read_timeout: 60000
+    write_timeout: 60000
+    routes:
+      - name: ai-route
+        paths:
+          - /api/v1/ai
+        strip_path: true
+        preserve_host: false
+
+  - name: gamification-service
+    url: http://gamification-service:8000
+    connect_timeout: 5000
+    read_timeout: 60000
+    write_timeout: 60000
+    routes:
+      - name: gamification-route
+        paths:
+          - /api/v1/game
+        strip_path: true
+        preserve_host: false

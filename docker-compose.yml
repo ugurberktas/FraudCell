@@ -1,0 +1,274 @@
+services:
+
+  # ══════════════════════════════════════════════
+  # PLATFORM INFRASTRUCTURE
+  # ══════════════════════════════════════════════
+
+  # ─── Kong API Gateway ─────────────────────────
+  kong:
+    image: kong:3.7
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: "/etc/kong/kong.yml"
+      KONG_PROXY_LISTEN: "0.0.0.0:8000"
+      KONG_ADMIN_LISTEN: "127.0.0.1:8001"   # Admin API only inside container
+      KONG_LOG_LEVEL: "warn"
+    volumes:
+      - ./gateway/kong.yml:/etc/kong/kong.yml:ro
+    ports:
+      - "8000:8000"                           # Proxy — exposed to host
+      # Admin port intentionally NOT published
+    networks:
+      - platform-network
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+
+  # ─── RabbitMQ ─────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: "${RABBITMQ_USER:-rabbit}"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASSWORD:-rabbit_pass}"
+    ports:
+      - "15672:15672"                         # Management UI — exposed to host
+      # Broker port 5672 intentionally NOT published
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - platform-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+
+  # ─── Redis ────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    networks:
+      - platform-network
+    # No host ports — internal only
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  # ─── Next.js Frontend ─────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      INTERNAL_API_BASE_URL: "http://kong:8000"
+    networks:
+      - platform-network
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  # ══════════════════════════════════════════════
+  # BACKEND SERVICES
+  # Each service is on platform-network (for Kong/RabbitMQ/Redis)
+  # AND its own isolated DB network.
+  # No host ports — access only through Kong on :8000
+  # ══════════════════════════════════════════════
+
+  identity-service:
+    build:
+      context: ./services/identity-service
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${IDENTITY_DB_USER:-identity_user}:${IDENTITY_DB_PASSWORD:-identity_pass}@identity-db:5432/${IDENTITY_DB_NAME:-identity_db}"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-rabbit}:${RABBITMQ_PASSWORD:-rabbit_pass}@rabbitmq:5672/"
+      REDIS_URL: "redis://redis:6379/0"
+    depends_on:
+      identity-db:
+        condition: service_healthy
+    networks:
+      - platform-network
+      - identity-network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  identity-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: "${IDENTITY_DB_NAME:-identity_db}"
+      POSTGRES_USER: "${IDENTITY_DB_USER:-identity_user}"
+      POSTGRES_PASSWORD: "${IDENTITY_DB_PASSWORD:-identity_pass}"
+    volumes:
+      - identity-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${IDENTITY_DB_USER:-identity_user} -d ${IDENTITY_DB_NAME:-identity_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - identity-network            # Isolated — NOT on platform-network
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+
+  transaction-service:
+    build:
+      context: ./services/transaction-service
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${TRANSACTION_DB_USER:-transaction_user}:${TRANSACTION_DB_PASSWORD:-transaction_pass}@transaction-db:5432/${TRANSACTION_DB_NAME:-transaction_db}"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-rabbit}:${RABBITMQ_PASSWORD:-rabbit_pass}@rabbitmq:5672/"
+      REDIS_URL: "redis://redis:6379/0"
+    depends_on:
+      transaction-db:
+        condition: service_healthy
+    networks:
+      - platform-network
+      - transaction-network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  transaction-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: "${TRANSACTION_DB_NAME:-transaction_db}"
+      POSTGRES_USER: "${TRANSACTION_DB_USER:-transaction_user}"
+      POSTGRES_PASSWORD: "${TRANSACTION_DB_PASSWORD:-transaction_pass}"
+    volumes:
+      - transaction-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TRANSACTION_DB_USER:-transaction_user} -d ${TRANSACTION_DB_NAME:-transaction_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - transaction-network         # Isolated — NOT on platform-network
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+
+  ai-service:
+    build:
+      context: ./services/ai-service
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${AI_DB_USER:-ai_user}:${AI_DB_PASSWORD:-ai_pass}@ai-db:5432/${AI_DB_NAME:-ai_db}"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-rabbit}:${RABBITMQ_PASSWORD:-rabbit_pass}@rabbitmq:5672/"
+      REDIS_URL: "redis://redis:6379/0"
+    depends_on:
+      ai-db:
+        condition: service_healthy
+    networks:
+      - platform-network
+      - ai-network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  ai-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: "${AI_DB_NAME:-ai_db}"
+      POSTGRES_USER: "${AI_DB_USER:-ai_user}"
+      POSTGRES_PASSWORD: "${AI_DB_PASSWORD:-ai_pass}"
+    volumes:
+      - ai-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AI_DB_USER:-ai_user} -d ${AI_DB_NAME:-ai_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - ai-network                  # Isolated — NOT on platform-network
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+
+  gamification-service:
+    build:
+      context: ./services/gamification-service
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${GAMIFICATION_DB_USER:-gamification_user}:${GAMIFICATION_DB_PASSWORD:-gamification_pass}@gamification-db:5432/${GAMIFICATION_DB_NAME:-gamification_db}"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-rabbit}:${RABBITMQ_PASSWORD:-rabbit_pass}@rabbitmq:5672/"
+      REDIS_URL: "redis://redis:6379/0"
+    depends_on:
+      gamification-db:
+        condition: service_healthy
+    networks:
+      - platform-network
+      - gamification-network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  gamification-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: "${GAMIFICATION_DB_NAME:-gamification_db}"
+      POSTGRES_USER: "${GAMIFICATION_DB_USER:-gamification_user}"
+      POSTGRES_PASSWORD: "${GAMIFICATION_DB_PASSWORD:-gamification_pass}"
+    volumes:
+      - gamification-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${GAMIFICATION_DB_USER:-gamification_user} -d ${GAMIFICATION_DB_NAME:-gamification_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - gamification-network        # Isolated — NOT on platform-network
+    restart: unless-stopped
+
+# ══════════════════════════════════════════════
+# NETWORKS
+# ══════════════════════════════════════════════
+networks:
+  platform-network:                 # Kong, RabbitMQ, Redis, Frontend, backend services
+  identity-network:                 # identity-service ↔ identity-db only
+  transaction-network:              # transaction-service ↔ transaction-db only
+  ai-network:                       # ai-service ↔ ai-db only
+  gamification-network:             # gamification-service ↔ gamification-db only
+
+# ══════════════════════════════════════════════
+# VOLUMES
+# ══════════════════════════════════════════════
+volumes:
+  identity-db-data:
+  transaction-db-data:
+  ai-db-data:
+  gamification-db-data:
+  rabbitmq-data:
+  redis-data:
