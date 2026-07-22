@@ -12,8 +12,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Create non-root user and switch to it
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 
-# Copy application source
+# Copy application source and alembic migrations
 COPY app/ ./app/
+COPY alembic/ ./alembic/
+COPY alembic.ini .
 
 RUN chown -R appuser:appgroup /app
 USER appuser
