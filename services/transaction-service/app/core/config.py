@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_issuer: str = "fraudcell-identity"
     jwt_audience: str = "fraudcell-platform"
-    ai_service_url: str = "http://ai-service:8000"
+    ai_service_url: str = "http://kong:8000"
     internal_service_key: str = ""
     ai_timeout_seconds: float = 3.0
 

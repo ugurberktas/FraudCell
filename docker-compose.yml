@@ -156,7 +156,7 @@ services:
       JWT_ALGORITHM: "${JWT_ALGORITHM:-HS256}"
       JWT_ISSUER: "${JWT_ISSUER:-fraudcell-identity}"
       JWT_AUDIENCE: "${JWT_AUDIENCE:-fraudcell-platform}"
-      AI_SERVICE_URL: "http://ai-service:8000"
+      AI_SERVICE_URL: "http://kong:8000"
       INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-}"
       AI_TIMEOUT_SECONDS: "3"
     depends_on:

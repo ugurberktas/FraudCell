@@ -76,7 +76,7 @@ ADMIN bu aşamada yalnızca işlem/vaka görüntüler; atama veya karar veremez.
 | `JWT_ALGORITHM` | `HS256` |
 | `JWT_ISSUER` | `fraudcell-identity` |
 | `JWT_AUDIENCE` | `fraudcell-platform` |
-| `AI_SERVICE_URL` | AI Service iç URL’si |
+| `AI_SERVICE_URL` | `/api/v1/ai` yolunu sunan Kong iç URL’si |
 | `INTERNAL_SERVICE_KEY` | Servisler arası kimlik doğrulama anahtarı |
 | `AI_TIMEOUT_SECONDS` | Varsayılan `3` |
 

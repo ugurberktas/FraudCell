@@ -212,6 +212,9 @@ class TransactionService:
                 "risk_level": RiskLevel.BELIRSIZ.value,
                 "model_version": None,
                 "assigned_analyst_id": None,
+                "risk_reasons": ["AI service unavailable"],
+                "assignment_status": "QUEUED",
+                "assignment_score": None,
                 "message": "AI unavailable; manual review case created",
             }
         data = ai_result.model_dump(mode="json")
