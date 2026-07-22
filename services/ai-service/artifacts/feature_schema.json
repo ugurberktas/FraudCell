@@ -1,0 +1,27 @@
+{
+  "features": [
+    "log_amount",
+    "transaction_type",
+    "hour",
+    "is_night",
+    "transaction_frequency_24h",
+    "is_new_device",
+    "city_mismatch",
+    "city",
+    "device_family",
+    "recipient_length"
+  ],
+  "input_fields": [
+    "amount",
+    "transaction_type",
+    "recipient",
+    "source_device",
+    "city",
+    "occurred_at",
+    "transaction_frequency_24h",
+    "is_new_device",
+    "home_city"
+  ],
+  "model_version": "fraudcell-demo-v1",
+  "target": "fraud_type"
+}

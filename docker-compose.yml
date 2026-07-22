@@ -152,9 +152,16 @@ services:
       DATABASE_URL: "postgresql+psycopg://${TRANSACTION_DB_USER:-transaction_user}:${TRANSACTION_DB_PASSWORD:-transaction_pass}@transaction-db:5432/${TRANSACTION_DB_NAME:-transaction_db}"
       RABBITMQ_URL: "amqp://${RABBITMQ_USER:-rabbit}:${RABBITMQ_PASSWORD:-rabbit_pass}@rabbitmq:5672/"
       REDIS_URL: "redis://redis:6379/0"
+      JWT_SECRET: "${JWT_SECRET:-}"
+      JWT_ALGORITHM: "${JWT_ALGORITHM:-HS256}"
+      JWT_ISSUER: "${JWT_ISSUER:-fraudcell-identity}"
+      JWT_AUDIENCE: "${JWT_AUDIENCE:-fraudcell-platform}"
+      AI_SERVICE_URL: "http://ai-service:8000"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-}"
+      AI_TIMEOUT_SECONDS: "3"
     depends_on:
-      transaction-db:
-        condition: service_healthy
+      transaction-migrate:
+        condition: service_completed_successfully
     networks:
       - platform-network
       - transaction-network
@@ -165,6 +172,19 @@ services:
       retries: 5
       start_period: 15s
     restart: unless-stopped
+
+  transaction-migrate:
+    build:
+      context: ./services/transaction-service
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${TRANSACTION_DB_USER:-transaction_user}:${TRANSACTION_DB_PASSWORD:-transaction_pass}@transaction-db:5432/${TRANSACTION_DB_NAME:-transaction_db}"
+    depends_on:
+      transaction-db:
+        condition: service_healthy
+    networks:
+      - transaction-network
+    restart: "no"
 
   transaction-db:
     image: postgres:16-alpine
@@ -193,9 +213,12 @@ services:
       DATABASE_URL: "postgresql+psycopg://${AI_DB_USER:-ai_user}:${AI_DB_PASSWORD:-ai_pass}@ai-db:5432/${AI_DB_NAME:-ai_db}"
       RABBITMQ_URL: "amqp://${RABBITMQ_USER:-rabbit}:${RABBITMQ_PASSWORD:-rabbit_pass}@rabbitmq:5672/"
       REDIS_URL: "redis://redis:6379/0"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-}"
+      MODEL_ARTIFACT_PATH: "artifacts/fraud_model.joblib"
+      MODEL_METADATA_PATH: "artifacts/model_metadata.json"
     depends_on:
-      ai-db:
-        condition: service_healthy
+      ai-migrate:
+        condition: service_completed_successfully
     networks:
       - platform-network
       - ai-network
@@ -206,6 +229,19 @@ services:
       retries: 5
       start_period: 15s
     restart: unless-stopped
+
+  ai-migrate:
+    build:
+      context: ./services/ai-service
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${AI_DB_USER:-ai_user}:${AI_DB_PASSWORD:-ai_pass}@ai-db:5432/${AI_DB_NAME:-ai_db}"
+    depends_on:
+      ai-db:
+        condition: service_healthy
+    networks:
+      - ai-network
+    restart: "no"
 
   ai-db:
     image: postgres:16-alpine

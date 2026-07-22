@@ -1,0 +1,15 @@
+{
+  "artifact_sha256": "0f916a6e2a78cd79a202bb1fe9605a079e8c5d59faa90da89cbca5ceab79794d",
+  "classes": [
+    "CALINTI_KART",
+    "HESAP_ELE_GECIRME",
+    "PARA_AKLAMA",
+    "SUPHELI_DAVRANIS",
+    "TEMIZ"
+  ],
+  "dataset_sha256": "74feffe872fb9002df8cbfa8583711be6c021d1af59e8bcc9875ed9c96743c76",
+  "model_type": "RandomForestClassifier",
+  "model_version": "fraudcell-demo-v1",
+  "random_seed": 20260723,
+  "training_data": "deterministic synthetic FraudCell demo data"
+}

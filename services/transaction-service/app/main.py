@@ -3,6 +3,8 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.api.routes.cases import router as cases_router
+from app.api.routes.transactions import router as transactions_router
 from app.common.exceptions import AppException
 from app.common.middleware import RequestIDMiddleware
 from app.common.responses import error_response, success_response
@@ -12,6 +14,8 @@ from app.db.session import check_db_connection
 app = FastAPI(title=settings.service_name, version=settings.version)
 
 app.add_middleware(RequestIDMiddleware)
+app.include_router(transactions_router)
+app.include_router(cases_router)
 
 
 def get_request_id_headers(request: Request) -> dict[str, str]:

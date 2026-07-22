@@ -1,5 +1,6 @@
 """Common response envelope utilities."""
 from typing import Any, Optional
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
 
@@ -9,7 +10,9 @@ def success_response(data: Any = None, status_code: int = 200, headers: Optional
         "data": data if data is not None else {},
         "error": None,
     }
-    return JSONResponse(status_code=status_code, content=content, headers=headers)
+    return JSONResponse(
+        status_code=status_code, content=jsonable_encoder(content), headers=headers
+    )
 
 
 def error_response(
@@ -28,4 +31,6 @@ def error_response(
             "details": details if details is not None else {},
         },
     }
-    return JSONResponse(status_code=status_code, content=content, headers=headers)
+    return JSONResponse(
+        status_code=status_code, content=jsonable_encoder(content), headers=headers
+    )
