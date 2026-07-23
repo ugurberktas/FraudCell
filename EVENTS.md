@@ -128,10 +128,12 @@ All events emitted across the message broker must strictly adhere to the `EventE
 ### 4. `case.decision_made`
 - **Amaç:** Analist vaka incelemesini tamamlayıp karar (onay/blok) verdiğinde tetiklenir.
 - **Producer:** `transaction-service`
-- **Consumer:** `gamification-service`, `identity-service`
+- **Consumer:** `gamification-service`
 - **Version:** `1`
-- **Idempotency Key:** `payload.case_id`
-- **Payload Fields:** `case_id`, `analyst_id`, `decision`, `fraud_type`
+- **Exchange / Queue / Routing:** `fraudcell.events` / `gamification.case-decisions.v1` / `case.decision_made`
+- **Idempotency Key:** envelope `event_id` (`processed_events.event_id` unique)
+- **Delivery:** Transactional outbox, persistent message, publisher confirm. Consumer DB commit sonrası ACK.
+- **Payload Fields:** `case_id`, `transaction_id`, `analyst_id`, `decision`, `fraud_type`, `risk_level`, `customer_response`, `case_created_at`, `decided_at`, `resolution_seconds`, `sla_exceeded`, `is_false_positive`
 - **Example JSON:**
 ```json
 {
@@ -143,12 +145,22 @@ All events emitted across the message broker must strictly adhere to the `EventE
   "correlation_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
   "payload": {
     "case_id": "e48841cc-9012-4ef8-7777-111122223333",
+    "transaction_id": "a0eebc99-1c0b-4ef8-bb6d-6bb9bd380a11",
     "analyst_id": "f59952dd-3456-4ef8-6666-444455556666",
     "decision": "BLOKLANDI",
-    "fraud_type": "CALINTI_KART"
+    "fraud_type": "CALINTI_KART",
+    "risk_level": "KRITIK",
+    "customer_response": "BEN_YAPMADIM",
+    "case_created_at": "2026-07-22T23:44:00Z",
+    "decided_at": "2026-07-22T23:55:00Z",
+    "resolution_seconds": 660,
+    "sla_exceeded": false,
+    "is_false_positive": false
   }
 }
 ```
+
+Transaction API, RabbitMQ sonucunu beklemez. Broker kesintisinde karar commit edilir ve outbox pending kalır; publisher tekrar bağlandığında yayınlar. Gamification worker kesintisinde durable queue mesajı saklar. At-least-once teslim, `event_id` idempotency ile puanı tam bir kez uygular.
 
 ---
 
@@ -262,12 +274,12 @@ All events emitted across the message broker must strictly adhere to the `EventE
 ---
 
 ### 9. `feedback.submitted`
-- **Amaç:** Müşteri güvenlik geri bildirimi sunduğunda tetiklenir.
+- **Amaç:** Müşteri kapatılmış vakaya 1–5 arası geri bildirim sunduğunda tetiklenir.
 - **Producer:** `transaction-service`
-- **Consumer:** `identity-service`, `ai-service`
+- **Consumer:** `gamification-service` (MVP'de yalnızca idempotent işleme; puan yok)
 - **Version:** `1`
-- **Idempotency Key:** `payload.feedback_id`
-- **Payload Fields:** `feedback_id`, `customer_id`, `score`, `comments`
+- **Idempotency Key:** envelope `event_id`
+- **Payload Fields:** `feedback_id`, `case_id`, `customer_id`, `rating`, `created_at`
 - **Example JSON:**
 ```json
 {
@@ -279,9 +291,10 @@ All events emitted across the message broker must strictly adhere to the `EventE
   "correlation_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
   "payload": {
     "feedback_id": "44445555-6666-7777-8888-999900001111",
+    "case_id": "e48841cc-9012-4ef8-7777-111122223333",
     "customer_id": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
-    "score": 5,
-    "comments": "Hızlı doğrulama için teşekkürler."
+    "rating": 5,
+    "created_at": "2026-07-22T23:57:30Z"
   }
 }
 ```

@@ -3,6 +3,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.api.routes.gamification import router as gamification_router
 from app.common.exceptions import AppException
 from app.common.middleware import RequestIDMiddleware
 from app.common.responses import error_response, success_response
@@ -12,6 +13,7 @@ from app.db.session import check_db_connection
 app = FastAPI(title=settings.service_name, version=settings.version)
 
 app.add_middleware(RequestIDMiddleware)
+app.include_router(gamification_router)
 
 
 def get_request_id_headers(request: Request) -> dict[str, str]:

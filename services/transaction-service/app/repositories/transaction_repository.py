@@ -44,7 +44,8 @@ class TransactionRepository:
             select(Transaction)
             .where(Transaction.id == transaction_id)
             .options(
-                selectinload(Transaction.risk_case).selectinload(RiskCase.history)
+                selectinload(Transaction.risk_case).selectinload(RiskCase.history),
+                selectinload(Transaction.risk_case).selectinload(RiskCase.feedback),
             )
         )
         return self.session.scalar(statement)
@@ -54,7 +55,8 @@ class TransactionRepository:
             select(Transaction)
             .where(Transaction.customer_id == customer_id)
             .options(
-                selectinload(Transaction.risk_case).selectinload(RiskCase.history)
+                selectinload(Transaction.risk_case).selectinload(RiskCase.history),
+                selectinload(Transaction.risk_case).selectinload(RiskCase.feedback),
             )
             .order_by(Transaction.created_at.desc())
         )

@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 
 from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import settings
@@ -34,3 +35,11 @@ def check_db_connection() -> bool:
     except (SQLAlchemyError, Exception) as exc:  # noqa: BLE001
         logger.warning("Database connectivity check failed: %s", exc)
         return False
+
+
+def get_db():
+    with Session(_get_engine()) as session:
+        try:
+            yield session
+        finally:
+            session.rollback()

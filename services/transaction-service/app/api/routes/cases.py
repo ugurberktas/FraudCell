@@ -1,7 +1,7 @@
 """Risk case list and state transition endpoints."""
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.common.responses import success_response
@@ -11,6 +11,7 @@ from app.schemas.transaction import (
     CaseAssignRequest,
     CaseDecisionRequest,
     CustomerResponseRequest,
+    FeedbackRequest,
 )
 from app.security.dependencies import require_roles
 from app.security.tokens import AuthenticatedUser, UserRole
@@ -87,11 +88,44 @@ def customer_response(
 def decide_case(
     case_id: uuid.UUID,
     payload: CaseDecisionRequest,
+    request: Request,
     user: AuthenticatedUser = Depends(require_roles(UserRole.ANALYST)),
     db: Session = Depends(get_db),
 ):
     return success_response(
         data=CaseService(db).decide(
-            case_id, user.user_id, payload.decision, payload.note
+            case_id,
+            user.user_id,
+            payload.decision,
+            payload.note,
+            getattr(request.state, "request_id", None),
         )
+    )
+
+
+@router.post("/{case_id}/close")
+def close_case(
+    case_id: uuid.UUID,
+    user: AuthenticatedUser = Depends(require_roles(UserRole.SUPERVISOR)),
+    db: Session = Depends(get_db),
+):
+    return success_response(data=CaseService(db).close(case_id, user.user_id))
+
+
+@router.post("/{case_id}/feedback", status_code=201)
+def submit_feedback(
+    case_id: uuid.UUID,
+    payload: FeedbackRequest,
+    request: Request,
+    user: AuthenticatedUser = Depends(require_roles(UserRole.CUSTOMER)),
+    db: Session = Depends(get_db),
+):
+    return success_response(
+        data=CaseService(db).submit_feedback(
+            case_id,
+            user.user_id,
+            payload.rating,
+            getattr(request.state, "request_id", None),
+        ),
+        status_code=201,
     )

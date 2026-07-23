@@ -8,10 +8,12 @@ import uuid
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     Enum as SQLEnum,
     ForeignKey,
     Integer,
+    JSON,
     Numeric,
     String,
     Text,
@@ -165,6 +167,9 @@ class RiskCase(Base):
         cascade="all, delete-orphan",
         order_by="CaseHistory.created_at",
     )
+    feedback: Mapped[CustomerFeedback | None] = relationship(
+        back_populates="risk_case", uselist=False, cascade="all, delete-orphan"
+    )
 
 
 class CaseHistory(Base):
@@ -187,3 +192,40 @@ class CaseHistory(Base):
     )
 
     risk_case: Mapped[RiskCase] = relationship(back_populates="history")
+
+
+class CustomerFeedback(Base):
+    __tablename__ = "customer_feedback"
+    __table_args__ = (
+        CheckConstraint("rating >= 1 AND rating <= 5", name="ck_customer_feedback_rating"),
+        UniqueConstraint("case_id", name="uq_customer_feedback_case_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    case_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("risk_cases.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    customer_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+    risk_case: Mapped[RiskCase] = relationship(back_populates="feedback")
+
+
+class OutboxEvent(Base):
+    __tablename__ = "outbox_events"
+    __table_args__ = (UniqueConstraint("event_id", name="uq_outbox_events_event_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    event_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    routing_key: Mapped[str] = mapped_column(String(100), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now, index=True
+    )
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_error: Mapped[str | None] = mapped_column(String(500))

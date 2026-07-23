@@ -19,6 +19,7 @@ class CaseRepository:
         return (
             selectinload(RiskCase.transaction),
             selectinload(RiskCase.history),
+            selectinload(RiskCase.feedback),
         )
 
     def add(self, risk_case: RiskCase) -> RiskCase:

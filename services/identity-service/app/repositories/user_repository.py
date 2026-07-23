@@ -27,6 +27,9 @@ class UserRepository:
         )
         return self.session.scalar(statement)
 
+    def get_by_gsm(self, gsm: str) -> User | None:
+        return self.session.scalar(select(User).where(User.gsm == gsm).limit(1))
+
     def get_by_email(self, email: str) -> User | None:
         return self.session.scalar(select(User).where(User.email == email).limit(1))
 

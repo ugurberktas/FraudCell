@@ -121,6 +121,24 @@ Start all containers in detached mode:
 docker compose up -d --build
 ```
 
+### Golden Demo hazırlığı
+
+Gerçek secret ve güçlü demo parolalarını shell environment'ında tanımladıktan sonra:
+
+```bash
+python3 scripts/demo_prepare.py
+python3 scripts/demo_status.py
+```
+
+Yalnızca sabit demo operasyonel verisini güvenle temizlemek için:
+
+```bash
+python3 scripts/demo_reset.py --confirm RESET_DEMO
+```
+
+Ayrıntılı canlı sunum sırası için `docs/DEMO_RUNBOOK.md` dosyasına bakın. Scriptler
+secret, parola veya token yazdırmaz; `.env` ve `demo.env` dosyaları takip edilmez.
+
 ---
 
 ## 🌐 Publicly Accessible Endpoints

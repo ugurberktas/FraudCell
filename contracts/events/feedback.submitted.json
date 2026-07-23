@@ -7,8 +7,9 @@
   "correlation_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
   "payload": {
     "feedback_id": "44445555-6666-7777-8888-999900001111",
+    "case_id": "e48841cc-9012-4ef8-7777-111122223333",
     "customer_id": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
-    "score": 5,
-    "comments": "Hızlı doğrulama için teşekkürler."
+    "rating": 5,
+    "created_at": "2026-07-22T23:57:30Z"
   }
 }

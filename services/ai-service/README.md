@@ -67,18 +67,21 @@ python -m app.ml.train
 
 Komut dataset ve dört artifacti yeniden yazar, accuracy, macro F1, fraud recall, confusion matrix ve satır sayılarını ekrana basar.
 
-## Demo analyst seed
+## Demo analyst seed/reset
 
 Gerçek Identity ANALYST UUID’lerini environment ile verin:
 
 ```bash
 DEMO_CARD_ANALYST_ID=<uuid> \
 DEMO_ACCOUNT_ANALYST_ID=<uuid> \
-DEMO_LAUNDERING_ANALYST_ID=<uuid> \
-python scripts/seed_demo_analysts.py
+DEMO_AML_ANALYST_ID=<uuid> \
+python -m app.cli.seed_demo_analysts
 ```
 
-Aynı değerlerle tekrar çalıştırmak duplicate üretmez. Eşdeğer CLI seçenekleri `--card-analyst-id`, `--account-analyst-id` ve `--laundering-analyst-id` şeklindedir.
+Aynı gerçek Identity UUID'leriyle tekrar çalıştırmak duplicate üretmez; var olan
+profilin uzmanlık/region/kapasite ayarları farklıysa güvenli hata verir. `--check`
+salt okunur doğrulama yapar. `python -m app.cli.reset_demo_analysts` yalnızca bu üç
+profilin `active_cases` değerini sıfırlar ve profilleri korur.
 
 ## Environment
 

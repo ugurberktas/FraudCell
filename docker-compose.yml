@@ -98,6 +98,10 @@ services:
       RABBITMQ_URL: "amqp://${RABBITMQ_USER:-rabbit}:${RABBITMQ_PASSWORD:-rabbit_pass}@rabbitmq:5672/"
       REDIS_URL: "redis://redis:6379/0"
       DEMO_OTP_CODE: "${DEMO_OTP_CODE:-1234}"
+      JWT_SECRET: "${JWT_SECRET:-}"
+      JWT_ALGORITHM: "${JWT_ALGORITHM:-HS256}"
+      JWT_ISSUER: "${JWT_ISSUER:-fraudcell-identity}"
+      JWT_AUDIENCE: "${JWT_AUDIENCE:-fraudcell-platform}"
     depends_on:
       identity-migrate:
         condition: service_completed_successfully
@@ -159,6 +163,7 @@ services:
       AI_SERVICE_URL: "http://kong:8000"
       INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-}"
       AI_TIMEOUT_SECONDS: "3"
+      EVENT_EXCHANGE: "${EVENT_EXCHANGE:-fraudcell.events}"
     depends_on:
       transaction-migrate:
         condition: service_completed_successfully
@@ -171,6 +176,25 @@ services:
       timeout: 3s
       retries: 5
       start_period: 15s
+    restart: unless-stopped
+
+  transaction-outbox-worker:
+    build:
+      context: ./services/transaction-service
+    command: ["python", "-m", "app.workers.outbox_publisher"]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${TRANSACTION_DB_USER:-transaction_user}:${TRANSACTION_DB_PASSWORD:-transaction_pass}@transaction-db:5432/${TRANSACTION_DB_NAME:-transaction_db}"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-rabbit}:${RABBITMQ_PASSWORD:-rabbit_pass}@rabbitmq:5672/"
+      EVENT_EXCHANGE: "${EVENT_EXCHANGE:-fraudcell.events}"
+      OUTBOX_POLL_INTERVAL_SECONDS: "${OUTBOX_POLL_INTERVAL_SECONDS:-1}"
+    depends_on:
+      transaction-migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - platform-network
+      - transaction-network
     restart: unless-stopped
 
   transaction-migrate:
@@ -270,9 +294,14 @@ services:
       DATABASE_URL: "postgresql+psycopg://${GAMIFICATION_DB_USER:-gamification_user}:${GAMIFICATION_DB_PASSWORD:-gamification_pass}@gamification-db:5432/${GAMIFICATION_DB_NAME:-gamification_db}"
       RABBITMQ_URL: "amqp://${RABBITMQ_USER:-rabbit}:${RABBITMQ_PASSWORD:-rabbit_pass}@rabbitmq:5672/"
       REDIS_URL: "redis://redis:6379/0"
+      JWT_SECRET: "${JWT_SECRET:-}"
+      JWT_ALGORITHM: "${JWT_ALGORITHM:-HS256}"
+      JWT_ISSUER: "${JWT_ISSUER:-fraudcell-identity}"
+      JWT_AUDIENCE: "${JWT_AUDIENCE:-fraudcell-platform}"
+      EVENT_EXCHANGE: "${EVENT_EXCHANGE:-fraudcell.events}"
     depends_on:
-      gamification-db:
-        condition: service_healthy
+      gamification-migrate:
+        condition: service_completed_successfully
     networks:
       - platform-network
       - gamification-network
@@ -283,6 +312,39 @@ services:
       retries: 5
       start_period: 15s
     restart: unless-stopped
+
+  gamification-worker:
+    build:
+      context: ./services/gamification-service
+    command: ["python", "-m", "app.workers.event_consumer"]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${GAMIFICATION_DB_USER:-gamification_user}:${GAMIFICATION_DB_PASSWORD:-gamification_pass}@gamification-db:5432/${GAMIFICATION_DB_NAME:-gamification_db}"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-rabbit}:${RABBITMQ_PASSWORD:-rabbit_pass}@rabbitmq:5672/"
+      EVENT_EXCHANGE: "${EVENT_EXCHANGE:-fraudcell.events}"
+      CASE_DECISION_QUEUE: "${CASE_DECISION_QUEUE:-gamification.case-decisions.v1}"
+      CONSUMER_PREFETCH: "${CONSUMER_PREFETCH:-10}"
+    depends_on:
+      gamification-migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - platform-network
+      - gamification-network
+    restart: unless-stopped
+
+  gamification-migrate:
+    build:
+      context: ./services/gamification-service
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${GAMIFICATION_DB_USER:-gamification_user}:${GAMIFICATION_DB_PASSWORD:-gamification_pass}@gamification-db:5432/${GAMIFICATION_DB_NAME:-gamification_db}"
+    depends_on:
+      gamification-db:
+        condition: service_healthy
+    networks:
+      - gamification-network
+    restart: "no"
 
   gamification-db:
     image: postgres:16-alpine

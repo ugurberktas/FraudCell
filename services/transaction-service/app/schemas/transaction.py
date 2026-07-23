@@ -115,6 +115,19 @@ class CaseDecisionRequest(BaseModel):
         return normalized or None
 
 
+class FeedbackRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    rating: int = Field(ge=1, le=5)
+
+
+class FeedbackRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    case_id: uuid.UUID
+    rating: int
+    created_at: datetime
+
+
 class CaseHistoryRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -146,3 +159,4 @@ class RiskCaseRead(BaseModel):
     sla_exceeded: bool
     transaction: TransactionRead | None = None
     history: list[CaseHistoryRead] = Field(default_factory=list)
+    feedback: FeedbackRead | None = None

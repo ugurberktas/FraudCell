@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import math
 
 from app.models import RiskCase, Transaction
-from app.schemas.transaction import CaseHistoryRead, RiskCaseRead, TransactionRead
+from app.schemas.transaction import CaseHistoryRead, FeedbackRead, RiskCaseRead, TransactionRead
 
 
 def _aware_utc(value: datetime) -> datetime:
@@ -52,5 +52,6 @@ def case_to_data(
             else None
         ),
         history=[CaseHistoryRead.model_validate(item) for item in risk_case.history],
+        feedback=(FeedbackRead.model_validate(risk_case.feedback) if risk_case.feedback else None),
     )
     return data.model_dump(mode="json")

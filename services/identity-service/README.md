@@ -117,3 +117,16 @@ source .venv/bin/activate
 pip install -r requirements-dev.txt
 pytest tests/ -v
 ```
+
+## Golden Demo seed ve reset
+
+`python -m app.cli.seed_demo_users` komutu, environment'tan aldığı parolalarla sabit
+Admin, Supervisor, üç Analyst ve demo Customer hesabını servis katmanı üzerinden
+idempotent oluşturur. Gerekli değişkenler `DEMO_ADMIN_PASSWORD`,
+`DEMO_SUPERVISOR_PASSWORD`, `DEMO_ANALYST_PASSWORD`, `DEMO_CUSTOMER_GSM` ve
+`DEMO_OTP_CODE`dur. Var olan hesabın rolü veya Analyst profili beklenenden farklıysa
+komut veriyi değiştirmeden hata verir. `--check` yalnızca doğrular.
+
+`python -m app.cli.reset_demo_identity` yalnızca sabit demo hesaplarının refresh
+sessionlarını, customer OTP kayıtlarını ve staff lock sayaçlarını temizler; kullanıcıları
+silmez. Hiçbir komut parola, hash, token veya OTP değerini çıktıya yazmaz.

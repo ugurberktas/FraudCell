@@ -30,6 +30,22 @@ body {
   max-width: 900px;
   margin: 0 auto;
 }
+.wide { max-width: 1100px; }
+.panel { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: .75rem; padding: 1.25rem; margin-bottom: 1.25rem; }
+.panel h2 { margin-bottom: 1rem; }
+.status-row, .section-title, .verification div { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+.section-title { justify-content: space-between; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .75rem; }
+input, select { background: #0f172a; color: var(--text-primary); border: 1px solid var(--card-border); border-radius: .45rem; padding: .7rem; }
+button { background: var(--button-bg); color: white; border: 0; border-radius: .45rem; padding: .65rem .9rem; cursor: pointer; margin-right: .4rem; }
+button:hover { background: var(--button-hover); }
+.danger { background: #b91c1c; }
+.verification { background: rgba(245,158,11,.16); border: 1px solid #f59e0b; border-radius: .75rem; padding: 1.25rem; margin-bottom: 1.25rem; }
+.verification p { margin: .65rem 0 1rem; }
+.toast { position: fixed; right: 1.25rem; top: 1.25rem; z-index: 10; background: #f59e0b; color: #111827; padding: 1rem; border-radius: .5rem; box-shadow: 0 10px 30px #0008; }
+.toast button { background: transparent; color: #111827; font-size: 1.2rem; padding: 0 0 0 1rem; }
+.transaction { display: flex; justify-content: space-between; gap: 1rem; border-top: 1px solid var(--card-border); padding: 1rem 0; align-items: center; }
+.feedback { display: flex; gap: .4rem; }
 
 .header {
   display: flex;

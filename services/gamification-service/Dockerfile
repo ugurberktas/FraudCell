@@ -14,6 +14,8 @@ RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 
 # Copy application source
 COPY app/ ./app/
+COPY alembic.ini ./alembic.ini
+COPY alembic/ ./alembic/
 
 RUN chown -R appuser:appgroup /app
 USER appuser

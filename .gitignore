@@ -11,6 +11,8 @@ ENV/
 
 # Environment variables (keep .env.example)
 .env
+demo.env
+*.demo.env
 .env.*
 !.env.example
 

@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     ai_service_url: str = "http://kong:8000"
     internal_service_key: str = ""
     ai_timeout_seconds: float = 3.0
+    event_exchange: str = "fraudcell.events"
+    outbox_poll_interval_seconds: float = 1.0
 
 
 settings = Settings()
