@@ -26,6 +26,36 @@ DEMO_EMAILS = {
 }
 
 
+def _parse_dotenv_line(line: str) -> tuple[str, str] | None:
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#") or "=" not in stripped:
+        return None
+    key, value = stripped.split("=", 1)
+    key = key.strip()
+    value = value.strip()
+    if not key:
+        return None
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        value = value[1:-1]
+    return key, value
+
+
+def load_root_dotenv(required_names: tuple[str, ...]) -> None:
+    missing_before = [name for name in required_names if not os.getenv(name, "").strip()]
+    if not missing_before:
+        return
+    dotenv = ROOT / ".env"
+    if not dotenv.exists():
+        raise RuntimeError("Root .env file is missing. Copy .env.example to .env and set demo secrets.")
+    for line in dotenv.read_text(encoding="utf-8").splitlines():
+        parsed = _parse_dotenv_line(line)
+        if not parsed:
+            continue
+        key, value = parsed
+        if not os.getenv(key):
+            os.environ[key] = value
+
+
 def required_environment() -> dict[str, str]:
     names = (
         "DEMO_ADMIN_PASSWORD",
@@ -33,10 +63,11 @@ def required_environment() -> dict[str, str]:
         "DEMO_ANALYST_PASSWORD",
         "INTERNAL_SERVICE_KEY",
     )
+    load_root_dotenv(names)
     values = {name: os.getenv(name, "") for name in names}
     missing = [name for name, value in values.items() if not value.strip()]
     if missing:
-        raise RuntimeError("Missing required environment variables: " + ", ".join(missing))
+        raise RuntimeError("Missing required environment variables:\n" + "\n".join(missing))
     values["DEMO_CUSTOMER_GSM"] = os.getenv("DEMO_CUSTOMER_GSM", "05550000001")
     values["DEMO_OTP_CODE"] = os.getenv("DEMO_OTP_CODE", "1234")
     return values

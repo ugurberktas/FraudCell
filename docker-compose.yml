@@ -73,6 +73,7 @@ services:
       - "3000:3000"
     environment:
       INTERNAL_API_BASE_URL: "http://kong:8000"
+      NEXT_PUBLIC_DEMO_MODE: "${NEXT_PUBLIC_DEMO_MODE:-true}"
     networks:
       - platform-network
     healthcheck:

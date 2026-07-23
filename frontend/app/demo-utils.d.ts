@@ -9,7 +9,7 @@ export interface QuickFill {
   is_new_device: boolean;
   home_city: string;
 }
-export function activeVerificationCases<T extends { case?: { status?: string } }>(items: T[]): T[];
-export function unseenVerificationIds<T extends { case?: { id: string; status?: string } }>(items: T[], seenIds: Set<string>): string[];
+export function activeVerificationCases<T extends { case?: { status?: string } | null }>(items: T[]): T[];
+export function unseenVerificationIds<T extends { case?: { id: string; status?: string } | null }>(items: T[], seenIds: Set<string>): string[];
 export function highRiskQuickFill(): QuickFill;
 export function normalQuickFill(): QuickFill;

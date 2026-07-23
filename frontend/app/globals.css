@@ -26,6 +26,59 @@ body {
   padding: 2rem 1rem;
 }
 
+a {
+  color: #bfdbfe;
+  text-decoration: none;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  color: var(--text-secondary);
+  font-size: .9rem;
+}
+
+.auth-container {
+  min-height: calc(100vh - 4rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-panel {
+  width: min(100%, 520px);
+}
+
+.stack {
+  display: grid;
+  gap: .85rem;
+}
+
+.tabs, .nav-actions, .button-row {
+  display: flex;
+  gap: .6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.tabs {
+  margin: 1rem 0;
+}
+
+.tab {
+  background: #334155;
+}
+
+.tab.active {
+  background: var(--button-bg);
+}
+
+.hint {
+  color: #fcd34d;
+  font-size: .9rem;
+}
+
 .container {
   max-width: 900px;
   margin: 0 auto;
