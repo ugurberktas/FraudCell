@@ -1,28 +1,39 @@
-# ai-service
+# AI Service
 
-FraudCell Golden Demo için deterministik sentetik veriyle eğitilmiş küçük risk modeli ve kapasite kontrollü analist atama servisidir. Model sabit skor üretmez; scikit-learn olasılıkları farklı girdilerde değişir.
+AI Service, checked-in scikit-learn artifactiyle deterministik risk inference ve
+kapasite kontrollü Analyst ataması yapar. Sabit veya random mock skor üretmez. Kong
+dış öneki `/api/v1/ai` şeklindedir.
 
 ## Endpointler
 
-| Method | Path | Güvenlik | Açıklama |
+| Method | İç path | Güvenlik | Açıklama |
 |---|---|---|---|
 | `GET` | `/health` | Public | Liveness |
-| `GET` | `/ready` | Public | PostgreSQL readiness |
-| `POST` | `/score-and-assign` | `X-Internal-Service-Key` | Risk skoru ve analist ataması |
+| `GET` | `/ready` | Public | AI PostgreSQL readiness |
+| `POST` | `/score-and-assign` | `X-Internal-Service-Key` | Model skoru ve kapasite rezervasyonu |
 | `POST` | `/internal/analysts/sync` | `X-Internal-Service-Key` | AnalystProfile idempotent upsert |
 
-Kong dış yolu `POST /api/v1/ai/score-and-assign` biçimindedir. Internal key yoksa `401`, yanlışsa `403` döner.
+Kong dış score adresi `POST /api/v1/ai/score-and-assign` olur. Internal key yoksa
+`401`, yanlışsa `403` döner. Başarılı/hatalı response'lar `success/data/error`
+envelope kullanır ve `X-Request-ID` korunur.
 
 ## Model ve veri
 
-- Model: `DictVectorizer + RandomForestClassifier`
-- Model version: `fraudcell-demo-v1`
-- Random seed: `20260723`
-- Dataset: 2.400 sentetik, gürültülü ve örtüşen örnek
-- Split: 1.800 train / 600 test
-- Hedefler: `TEMIZ`, `CALINTI_KART`, `HESAP_ELE_GECIRME`, `PARA_AKLAMA`, `SUPHELI_DAVRANIS`
+| Özellik | Değer |
+|---|---|
+| Pipeline | `DictVectorizer + RandomForestClassifier` |
+| Model version | `fraudcell-demo-v1` |
+| Random seed | `20260723` |
+| Veri | 2.400 deterministik sentetik satır |
+| Split | 1.800 train / 600 test |
+| Accuracy | `0.66` |
+| Macro F1 | `0.331712` |
+| Fraud recall | `0.483871` |
 
-Özellikler tutar, işlem tipi, saat/gece sinyali, 24 saatlik frekans, yeni cihaz, ev şehri uyuşmazlığı, şehir, cihaz ailesi ve recipient uzunluğudur. Tek bir özellik etiketi tamamen belirlemez; veri üretimi label flip ve sınıf gürültüsü içerir.
+Hedefler `TEMIZ`, `CALINTI_KART`, `HESAP_ELE_GECIRME`, `PARA_AKLAMA` ve
+`SUPHELI_DAVRANIS` sınıflarıdır. Özellikler tutar, işlem türü, saat/gece,
+24 saatlik frekans, yeni cihaz, şehir uyuşmazlığı, şehir, cihaz ailesi ve alıcı
+uzunluğudur. Dataset sentetiktir; gerçek banka verisi içermez.
 
 Artifactler:
 
@@ -32,20 +43,39 @@ Artifactler:
 - `artifacts/feature_schema.json`
 - `data/synthetic_fraud_transactions.csv`
 
-Artifact bulunamaz veya yüklenemezse uygulama güvenli biçimde başlamaz; mock skora düşmez.
+Model modülü import edilirken artifact yüklenir. Dosya eksik/bozuksa servis başlamaz;
+mock skora düşmez.
 
-## Risk ve karar eşikleri
+## Skor, karar ve açıklama
 
-| Risk skoru | Karar | Risk seviyesi |
+```text
+risk_score = 1 - P(TEMIZ)
+```
+
+| Skor | Karar | Risk |
 |---:|---|---|
 | `< 0.40` | `ONAY` | `DUSUK` |
 | `0.40–<0.70` | `INCELEME` | `ORTA` |
 | `0.70–0.90` | `INCELEME` | `YUKSEK` |
 | `> 0.90` | `BLOK` | `KRITIK` |
 
-Risk skoru `1 - P(TEMIZ)` olarak model olasılığından hesaplanır. `risk_reasons`, model açıklaması değildir; yüksek tutar, gece, alışılmadık şehir, yeni cihaz ve yüksek frekans gibi gözlenen giriş sinyallerini listeler.
+Response `risk_score`, `risk_level`, `fraud_type`, `decision`, `risk_reasons`,
+`model_version`, `assigned_analyst_id`, `assignment_status` ve `assignment_score`
+alanlarını döner. `risk_reasons` SHAP açıklaması değildir; girdide gözlenen yüksek
+tutar, gece, alışılmadık şehir, yeni cihaz ve yüksek frekans kurallarının listesidir.
 
-## Analist atama
+Checked-in artifact için üç örnek:
+
+| Senaryo | Skor | Fraud türü | Karar / risk |
+|---|---:|---|---|
+| Normal `250` TL fatura | `0.396577` | `TEMIZ` | `ONAY / DUSUK` |
+| `15000` TL, yeni cihaz, Berlin | `0.691419` | `HESAP_ELE_GECIRME` | `INCELEME / ORTA` |
+| Golden `48500` TL gece transferi | `0.840797` | `HESAP_ELE_GECIRME` | `INCELEME / YUKSEK` |
+
+Tam girdiler ve veri sınırlamaları için [AI yaklaşımı](../../docs/AI_APPROACH.md)
+dokümanına bakın.
+
+## Analyst atama
 
 ```text
 assignment_score = specialization_match * 0.50
@@ -55,53 +85,51 @@ assignment_score = specialization_match * 0.50
 availability_ratio = 1 - active_cases / max_active_cases
 ```
 
-Pasif veya kapasitesi dolu analistler elenir. Eşit skorda önce düşük `active_cases`, sonra UUID sırası kazanır. Atama kapasitesi koşullu atomik update ile artırılır ve aday satırları PostgreSQL `FOR UPDATE` ile kilitlenir. Kapasite yoksa `QUEUED` döner. `ONAY` işlemleri analist kapasitesi tüketmez.
+Pasif veya kapasitesi dolu Analyst elenir. Sıralama eşitliğinde önce düşük
+`active_cases`, sonra UUID kullanılır. PostgreSQL `FOR UPDATE` ve koşullu atomik
+update kapasiteyi rezerve eder. Uygun profil yoksa `QUEUED` döner. `ONAY` işlemi
+Analyst kapasitesi tüketmez.
 
-## Eğitim
+Golden fraud türü `HESAP_ELE_GECIRME` olduğu için temiz seed'de Hesap Analisti
+atanır. `regions` profil alanında bulunur ancak mevcut ranking formülüne katılmaz.
 
-Eğitim Docker build sırasında çalışmaz. Artifactleri deterministik olarak yeniden üretmek için:
+## Demo seed/reset
+
+Gerçek Identity ANALYST UUID'leriyle:
+
+```bash
+python -m app.cli.seed_demo_analysts
+python -m app.cli.seed_demo_analysts --check
+python -m app.cli.reset_demo_analysts
+```
+
+Gerekli ID değişkenleri `DEMO_CARD_ANALYST_ID`, `DEMO_ACCOUNT_ANALYST_ID` ve
+`DEMO_AML_ANALYST_ID` şeklindedir. Root `scripts/demo_prepare.py` bunları Identity
+seed sonucundan aktarır. Reset profilleri silmez; yalnızca üç demo profilinin
+`active_cases` değerini sıfırlar.
+
+## Ayarlar, eğitim ve test
+
+| Değişken | Açıklama |
+|---|---|
+| `DATABASE_URL` | AI PostgreSQL URL |
+| `INTERNAL_SERVICE_KEY` | Transaction ile ortak internal key |
+| `MODEL_ARTIFACT_PATH` | Joblib artifact yolu |
+| `MODEL_METADATA_PATH` | Metadata yolu |
 
 ```bash
 python -m app.ml.train
-```
-
-Komut dataset ve dört artifacti yeniden yazar, accuracy, macro F1, fraud recall, confusion matrix ve satır sayılarını ekrana basar.
-
-## Demo analyst seed/reset
-
-Gerçek Identity ANALYST UUID’lerini environment ile verin:
-
-```bash
-DEMO_CARD_ANALYST_ID=<uuid> \
-DEMO_ACCOUNT_ANALYST_ID=<uuid> \
-DEMO_AML_ANALYST_ID=<uuid> \
-python -m app.cli.seed_demo_analysts
-```
-
-Aynı gerçek Identity UUID'leriyle tekrar çalıştırmak duplicate üretmez; var olan
-profilin uzmanlık/region/kapasite ayarları farklıysa güvenli hata verir. `--check`
-salt okunur doğrulama yapar. `python -m app.cli.reset_demo_analysts` yalnızca bu üç
-profilin `active_cases` değerini sıfırlar ve profilleri korur.
-
-## Environment
-
-| Variable | Açıklama |
-|---|---|
-| `DATABASE_URL` | AI PostgreSQL bağlantısı |
-| `INTERNAL_SERVICE_KEY` | Transaction/AI ortak internal key |
-| `MODEL_ARTIFACT_PATH` | Joblib model yolu |
-| `MODEL_METADATA_PATH` | Model metadata yolu |
-
-## Migration ve test
-
-```bash
 alembic upgrade head
 alembic downgrade base
-pytest tests/ -q
+pytest tests -q
 ```
 
-Compose `ai-migrate` başarıyla tamamlanmadan AI Service’i başlatmaz. Production kodu `create_all` kullanmaz.
+Docker build modeli eğitmez; doğrulanmış artifacti image içine alır. Compose,
+`ai-migrate` tamamlanmadan API'yi başlatmaz.
 
-## Sınırlamalar
+## Sınırlar
 
-Bu model yalnızca Golden Demo için sentetik veriye dayanır; gerçek finansal karar sistemi değildir. Drift izleme, calibration, fairness analizi, gerçek zamanlı feature store ve karar sonrası analist kapasitesi azaltımı bu kapsamda yoktur.
+Model demo amaçlı sentetik veriye dayanır; calibration, gerçek fraud maliyet
+optimizasyonu, drift/fairness takibi, registry ve online retraining yoktur. Identity
+profil sync'i otomatik event değildir. Karar/kapanış sonrası `active_cases` otomatik
+azaltılmaz.

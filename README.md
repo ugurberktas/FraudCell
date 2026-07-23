@@ -1,207 +1,178 @@
 # FraudCell
 
-> **Infrastructure Status:** ⚠️ **Skeleton & Infrastructure Baseline Completed.**  
-> This monorepo currently contains the production-grade containerized microservices infrastructure, database connections, API gateway routing, message queue & cache topology, Next.js frontend, standardized contract envelopes, and automated testing framework. Business domain logic, database tables, and message handlers will be added in subsequent phases.
+FraudCell, jüri demosu için hazırlanmış dört servisli bir fraud inceleme MVP'sidir.
+Customer işlemi gerçek bir scikit-learn artifacti ile skorlanır, risk vakası uygun
+Analyst'e atanır, vaka kararı transactional outbox üzerinden RabbitMQ'ya yayınlanır
+ve Gamification worker puan/rozet/leaderboard verisini üretir.
 
----
+Bu repository bir skeleton değildir; Golden Demo iş akışı uygulanmıştır. Bununla
+birlikte gerçek banka entegrasyonu, gerçek SMS, production veriyle eğitilmiş model,
+TLS/secret manager, yüksek erişilebilirlik ve production gözlemlenebilirliği yoktur.
+Bu nedenle sistem bir demo MVP'sidir, production-ready olduğu iddia edilmez.
 
-## 🎯 About FraudCell
-
-**FraudCell** is a distributed, event-driven fraud detection platform designed for high-throughput financial transaction monitoring, real-time AI risk evaluation, identity verification, and analyst gamification.
-
----
-
-## 📐 Standards & Technical Contracts
-
-- 📄 **API Conventions Standard:** [`docs/standards/API_CONVENTIONS.md`](file:///Users/ugurberktas/Desktop/FraudCell/docs/standards/API_CONVENTIONS.md)
-- 📄 **Domain Conventions Standard:** [`docs/standards/DOMAIN_CONVENTIONS.md`](file:///Users/ugurberktas/Desktop/FraudCell/docs/standards/DOMAIN_CONVENTIONS.md)
-- 📄 **Security Conventions Standard:** [`docs/standards/SECURITY_CONVENTIONS.md`](file:///Users/ugurberktas/Desktop/FraudCell/docs/standards/SECURITY_CONVENTIONS.md)
-- ⚡ **Domain Event Catalog & Specifications:** [`EVENTS.md`](file:///Users/ugurberktas/Desktop/FraudCell/EVENTS.md)
-- 🔍 **Contract Validation Command:** `python3 scripts/validate_contracts.py`
-
----
-
-## 🏛️ System Architecture
+## Mimari
 
 ```mermaid
-flowchart TD
-    Client[Client / Browser] -->|Port 3000| Frontend[Next.js Frontend]
-    Client -->|Port 8000| Kong[Kong API Gateway]
-
-    Frontend -->|Internal /api/platform-health| Kong
-
-    subgraph Platform Network ["platform-network (Shared Platform Infra)"]
-        Kong
-        RabbitMQ[RabbitMQ Broker & UI :15672]
-        Redis[(Redis Cache)]
-        
-        IdentitySvc[identity-service]
-        TransactionSvc[transaction-service]
-        AISvc[ai-service]
-        GameSvc[gamification-service]
-    end
-
-    Kong -->|/api/v1/auth| IdentitySvc
-    Kong -->|/api/v1/transactions| TransactionSvc
-    Kong -->|/api/v1/ai| AISvc
-    Kong -->|/api/v1/game| GameSvc
-
-    subgraph IdentityNet ["identity-network"]
-        IdentitySvc --- IdentityDB[(identity-db)]
-    end
-
-    subgraph TxNet ["transaction-network"]
-        TransactionSvc --- TxDB[(transaction-db)]
-    end
-
-    subgraph AINet ["ai-network"]
-        AISvc --- AIDB[(ai-db)]
-    end
-
-    subgraph GameNet ["gamification-network"]
-        GameSvc --- GameDB[(gamification-db)]
-    end
+flowchart LR
+    Browser["Next.js frontend :3000"] --> Kong["Kong :8000"]
+    Kong --> Identity["Identity Service"]
+    Kong --> Transaction["Transaction Service"]
+    Kong --> AI["AI Service"]
+    Kong --> Game["Gamification Service"]
+    Transaction -->|"senkron HTTP skor/atama"| AI
+    Transaction --> TxDB[(Transaction PostgreSQL)]
+    TransactionWorker["Outbox worker"] --> TxDB
+    TransactionWorker --> Rabbit[(RabbitMQ)]
+    Rabbit --> GameWorker["Gamification worker"]
+    GameWorker --> GameDB[(Gamification PostgreSQL)]
+    Identity --> IdentityDB[(Identity PostgreSQL)]
+    AI --> AIDB[(AI PostgreSQL)]
 ```
 
----
+Her servis yalnızca kendi PostgreSQL veritabanına bağlıdır. Backend ve veritabanı
+portları host'a açılmaz; HTTP trafiği Kong üzerinden geçer. RabbitMQ broker portu
+yalnızca Compose ağı içindedir. Frontend domain verisini API'lerden alır ve güncellemeleri
+polling ile izler.
 
-## 🔒 Network & Security Topology
+| Servis | Kong öneki | Kalıcı veri | Sorumluluk |
+|---|---|---|---|
+| Identity | `/api/v1/auth` | `identity-db` | OTP, staff login, JWT/refresh, RBAC, audit |
+| Transaction | `/api/v1/transactions` | `transaction-db` | İşlem, vaka, state machine, outbox |
+| AI | `/api/v1/ai` | `ai-db` | Model inference, Analyst profili ve atama |
+| Gamification | `/api/v1/game` | `gamification-db` | Event tüketimi, ledger, rozet, leaderboard |
 
-1. **Host Isolation:** Backend microservices (`8000`) and PostgreSQL databases (`5432`) **do NOT expose host ports**. All external access is strictly routed through Kong Gateway on port `8000` or Frontend on port `3000`.
-2. **Database Isolation:** Each PostgreSQL database container is attached **only** to its corresponding private service network (`identity-network`, `transaction-network`, `ai-network`, `gamification-network`). Database containers are NOT attached to `platform-network` and cannot be accessed by other microservices.
-3. **Platform Network:** Kong, RabbitMQ, Redis, Frontend, and the 4 backend microservices share `platform-network` for inter-service communication.
+## Frontend route'ları
 
----
+| Route | Erişim |
+|---|---|
+| `/` | Oturuma göre `/login`, `/customer`, `/analyst` veya `/supervisor` yönlendirmesi |
+| `/login` | Customer GSM/OTP ve staff email/parola formları |
+| `/customer` | Customer işlemleri, doğrulama ve feedback |
+| `/analyst` | Atanmış vakalar ve Gamification profili |
+| `/supervisor` | Supervisor/Admin vaka görünümü ve manuel atama |
+| `/leaderboard` | Analyst, Supervisor ve Admin |
 
-## 🗄️ Service & Database Mapping
+Demo modu açıkken login ekranı OTP'nin `1234` olduğunu belirtir. Çalışan Identity
+konfigürasyonundaki `DEMO_OTP_CODE` da `1234` olmalıdır; gerçek SMS gönderilmez.
 
-| Service | Host Route | Internal Container Port | Database Container | Database Volume | Isolated Network |
-|---|---|---|---|---|---|
-| **Identity Service** | `/api/v1/auth/*` | 8000 | `identity-db` | `identity-db-data` | `identity-network` |
-| **Transaction Service** | `/api/v1/transactions/*` | 8000 | `transaction-db` | `transaction-db-data` | `transaction-network` |
-| **AI Service** | `/api/v1/ai/*` | 8000 | `ai-db` | `ai-db-data` | `ai-network` |
-| **Gamification Service** | `/api/v1/game/*` | 8000 | `gamification-db` | `gamification-db-data` | `gamification-network` |
+## Kurulum ve demo hazırlığı
 
----
-
-## 🛠️ Technology Stack
-
-- **Backend:** Python 3.12, FastAPI, Pydantic v2, `pydantic-settings`
-- **Database Layer:** PostgreSQL 16 (Alpine), SQLAlchemy 2.x, `psycopg 3` binary
-- **API Gateway:** Kong 3.7 (DB-less declarative mode)
-- **Messaging & Cache:** RabbitMQ 3.13 (Management Alpine), Redis 7 (Alpine)
-- **Frontend:** Next.js 14 (App Router, Standalone build), TypeScript, Vanilla CSS
-- **Testing:** `pytest`, `httpx`, Custom Python Contract Validator, Smoke & Fault Isolation test suite
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Engine 24+, Compose v2+)
-- Python 3.12+ (for running pytest and test scripts locally)
-- Node.js 22+ (for local frontend development)
-
-### 1. Environment Setup
-
-Copy the example environment template:
+Gereksinimler: Docker Desktop/Compose v2, Python 3.12+ ve frontend'i host üzerinde
+çalıştırmak için Node.js 22+.
 
 ```bash
 cp .env.example .env
 ```
 
-> **Note:** Never commit `.env` containing production passwords to version control.
+Root `.env` içinde en az aşağıdaki değerleri yerel, güçlü değerlerle doldurun:
 
-### 2. Launching the Entire Stack
+- `DEMO_ADMIN_PASSWORD`
+- `DEMO_SUPERVISOR_PASSWORD`
+- `DEMO_ANALYST_PASSWORD`
+- `DEMO_CUSTOMER_GSM`
+- `DEMO_OTP_CODE`
+- `INTERNAL_SERVICE_KEY`
+- `JWT_SECRET`
 
-Start all containers in detached mode:
+`.env` Git tarafından takip edilmez. Secret, parola, token veya OTP'yi terminal
+çıktısına ya da dokümana kopyalamayın.
 
 ```bash
-docker compose up -d --build
-```
-
-### Golden Demo hazırlığı
-
-Gerçek secret ve güçlü demo parolalarını shell environment'ında tanımladıktan sonra:
-
-```bash
+docker compose up -d --build --wait
+python3 scripts/demo_reset.py --confirm RESET_DEMO
+python3 scripts/demo_prepare.py
 python3 scripts/demo_prepare.py
 python3 scripts/demo_status.py
 ```
 
-Yalnızca sabit demo operasyonel verisini güvenle temizlemek için:
+İkinci `demo_prepare.py` çağrısı idempotency kontrolüdür. Başarı halinde status
+komutunun son satırı `DEMO READY` olur. Hazırlanan sabit staff hesapları:
+
+- `demo.admin@fraudcell.com`
+- `demo.supervisor@fraudcell.com`
+- `demo.analyst.card@fraudcell.com`
+- `demo.analyst.account@fraudcell.com`
+- `demo.analyst.aml@fraudcell.com`
+
+Parolalar yalnızca root `.env` değerlerinden gelir. Customer hesabı
+`DEMO_CUSTOMER_GSM` ile hazırlanır.
+
+## Golden Demo girdisi
+
+Frontend'deki **Yüksek risk hızlı doldur** aşağıdaki modeli besler:
+
+| Alan | Değer |
+|---|---|
+| `amount` | `48500` |
+| `transaction_type` | `TRANSFER` |
+| `recipient` | `Demo Alıcı` |
+| `source_device` | `Yeni iPhone` |
+| `city` / `home_city` | `Berlin` / `Istanbul` |
+| `occurred_at` | `2026-07-23T01:30:00Z` |
+| `transaction_frequency_24h` | `20` |
+| `is_new_device` | `true` |
+
+Checked-in `fraudcell-demo-v1` artifactinin bu girdideki deterministik çıktısı
+`risk_score=0.840797`, `risk_level=YUKSEK`,
+`fraud_type=HESAP_ELE_GECIRME`, `decision=INCELEME` ve beş gözlenen risk nedenidir.
+Temiz reset sonrasında uzmanlık eşleşmesi nedeniyle Hesap Analisti atanır. Canlı API
+sonucu her zaman demo sırasında ekrandan doğrulanmalıdır.
+
+Bu `YUKSEK` senaryoda hızlı `BLOKLANDI + BEN_YAPMADIM` kararı `+30` üretir:
+`CASE_RESOLVED +10`, `FAST_DECISION +5`, `CONFIRMED_FRAUD +15`. Yalnızca skor
+`KRITIK` olup SLA içindeyse ek `CRITICAL_WITHIN_SLA +15` uygulanır.
+
+## Final acceptance ve testler
+
+Çalışan ve temiz hazırlanmış platformda:
 
 ```bash
-python3 scripts/demo_reset.py --confirm RESET_DEMO
+python3 scripts/final_acceptance.py
 ```
 
-Ayrıntılı canlı sunum sırası için `docs/DEMO_RUNBOOK.md` dosyasına bakın. Scriptler
-secret, parola veya token yazdırmaz; `.env` ve `demo.env` dosyaları takip edilmez.
+Script gerçek API/OpenAPI operasyonlarını, PostgreSQL kayıtlarını, iki workerı,
+RabbitMQ akışını, puan/rozet/leaderboard sonucunu ve AI stop/fallback/recovery
+davranışını kontrol eder.
+Tam başarıda exit code `0` ve son satır `FRAUDCELL FINAL ACCEPTANCE PASSED` olur.
 
----
+Servis testleri ve frontend kontrolleri:
 
-## 🌐 Publicly Accessible Endpoints
+```bash
+cd services/identity-service && .venv/bin/pytest tests -q
+cd ../transaction-service && .venv/bin/pytest tests -q
+cd ../ai-service && .venv/bin/pytest tests -q
+cd ../gamification-service && .venv/bin/pytest tests -q
+cd ../../frontend && npm run lint && npm test && npm run build
+```
 
-| Resource | URL | Description |
-|---|---|---|
-| **Frontend Dashboard** | `http://localhost:3000` | Real-time platform status dashboard |
-| **Frontend API Proxy** | `http://localhost:3000/api/platform-health` | Aggregated microservice health JSON |
-| **Kong API Gateway** | `http://localhost:8000` | Central entry point for all API routes |
-| **RabbitMQ Management** | `http://localhost:15672` | RabbitMQ Web Console (`rabbit` / `changeme_rabbit`) |
+Repository kökünden kalan kontroller:
 
----
-
-## 🧪 Automated Testing & Verification
-
-### 1. Contract Validation
-Validates all JSON API response examples, domain enums, and event envelopes:
 ```bash
 python3 scripts/validate_contracts.py
-```
-
-### 2. Unit & Integration Tests (Pytest)
-Run test suites across all 4 microservices:
-```bash
-for svc in identity-service transaction-service ai-service gamification-service; do
-  cd services/$svc && .venv/bin/pytest tests/ -v && cd ../..
-done
-```
-
-### 3. Automated Smoke Test
-Validates frontend, gateway routes, JSON payload integrity, and port isolation:
-```bash
+docker compose config
 python3 scripts/smoke_test.py
-```
-
-### 4. Automated Fault Isolation Test
-Simulates `ai-service` failure, verifies gateway 502/503 isolation, ensures other services remain active, and verifies automatic recovery:
-```bash
 python3 scripts/fault_test.py
+git diff --check
 ```
 
----
+## Dokümantasyon
 
-## 🧹 System Shutdown
+- [API kuralları](docs/standards/API_CONVENTIONS.md)
+- [Domain kuralları](docs/standards/DOMAIN_CONVENTIONS.md)
+- [Güvenlik kuralları](docs/standards/SECURITY_CONVENTIONS.md)
+- [Uygulanan event akışı](EVENTS.md)
+- [AI yaklaşımı](docs/AI_APPROACH.md)
+- [Operasyon runbook'u](docs/DEMO_RUNBOOK.md)
+- [6–7 dakikalık sunum metni](docs/FINAL_DEMO_SCRIPT.md)
+- [Jüri soru-cevap notları](docs/JURY_QA.md)
 
-Stop and remove containers (preserving database volumes):
+## Kapatma
+
+Veritabanı volume'larını koruyarak:
 
 ```bash
 docker compose down
 ```
 
-To remove containers AND database volumes (clean reset):
-
-```bash
-docker compose down -v
-```
-
----
-
-## ❓ Troubleshooting & Common Issues
-
-| Issue | Cause | Resolution |
-|---|---|---|
-| `Bind for 0.0.0.0:8000 failed` | Port 8000 is occupied by another process | Stop conflicting app: `lsof -i :8000` & `docker stop <container_id>` |
-| `Bind for 0.0.0.0:15672 failed` | Port 15672 is occupied by existing RabbitMQ | Stop existing RabbitMQ: `docker stop <container_id>` |
-| `503 Service Unavailable` on `/ready` | PostgreSQL database container is initializing | Wait a few seconds for DB healthcheck to turn `healthy` |
+`docker compose down -v` tüm Compose volume'larını siler; yalnızca bilinçli temiz
+kurulum gerektiğinde kullanılmalıdır.

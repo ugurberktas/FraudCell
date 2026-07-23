@@ -74,6 +74,7 @@ class TransactionRead(BaseModel):
     risk_level: RiskLevel
     ai_status: AIStatus
     model_version: str | None
+    risk_reasons: list[str] = Field(default_factory=list)
     temporary_blocked: bool
     created_at: datetime
     updated_at: datetime

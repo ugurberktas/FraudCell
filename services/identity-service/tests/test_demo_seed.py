@@ -10,6 +10,7 @@ from app.common.exceptions import AppException
 from app.db.base import Base
 from app.models.user import User, UserRole
 from app.repositories.user_repository import UserRepository
+from app.security.passwords import verify_password
 
 
 @pytest.fixture
@@ -37,11 +38,70 @@ def demo_env(monkeypatch):
 
 def test_demo_user_seed_is_idempotent(database_session, demo_env):
     first = seed_demo_users.seed(database_session)
+    first_hashes = {
+        user.email: user.password_hash
+        for user in database_session.scalars(
+            select(User).where(User.role != UserRole.CUSTOMER)
+        )
+    }
     second = seed_demo_users.seed(database_session)
+    second_hashes = {
+        user.email: user.password_hash
+        for user in database_session.scalars(
+            select(User).where(User.role != UserRole.CUSTOMER)
+        )
+    }
     assert first == second
+    assert first_hashes == second_hashes
     assert database_session.scalar(select(func.count()).select_from(User)) == 6
     assert second["customer"]["gsm"] == "+905550000001"
     assert demo_user_info.lookup(database_session) == second
+
+
+def test_demo_seed_aligns_existing_staff_password_with_environment(
+    database_session, demo_env, monkeypatch
+):
+    first = seed_demo_users.seed(database_session)
+    supervisor_email = "demo.supervisor@fraudcell.com"
+    supervisor = database_session.scalar(
+        select(User).where(User.email == supervisor_email)
+    )
+    original_hash = supervisor.password_hash
+
+    replacement_password = "ReplacementSupervisor2!"
+    monkeypatch.setenv("DEMO_SUPERVISOR_PASSWORD", replacement_password)
+    second = seed_demo_users.seed(database_session)
+
+    database_session.refresh(supervisor)
+    assert second == first
+    assert supervisor.password_hash != original_hash
+    assert verify_password(replacement_password, supervisor.password_hash)
+    assert not verify_password("DemoSupervisor1!", supervisor.password_hash)
+    aligned_hash = supervisor.password_hash
+
+    assert seed_demo_users.seed(database_session) == first
+    database_session.refresh(supervisor)
+    assert supervisor.password_hash == aligned_hash
+
+
+def test_demo_seed_check_rejects_password_mismatch_without_mutation(
+    database_session, demo_env, monkeypatch
+):
+    seed_demo_users.seed(database_session)
+    supervisor = database_session.scalar(
+        select(User).where(User.email == "demo.supervisor@fraudcell.com")
+    )
+    original_hash = supervisor.password_hash
+    configured_password = "ConfiguredSupervisor2!"
+    monkeypatch.setenv("DEMO_SUPERVISOR_PASSWORD", configured_password)
+
+    with pytest.raises(AppException) as exc:
+        seed_demo_users.seed(database_session, create_missing=False)
+
+    assert exc.value.code == "DEMO_USER_PASSWORD_MISMATCH"
+    assert configured_password not in str(exc.value)
+    database_session.refresh(supervisor)
+    assert supervisor.password_hash == original_hash
 
 
 def test_demo_seed_rejects_role_or_profile_conflict(database_session, demo_env):

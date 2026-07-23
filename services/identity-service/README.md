@@ -1,132 +1,122 @@
-# identity-service
+# Identity Service
 
-Handles user identity, authentication, and user metadata for FraudCell.
+Identity Service, FraudCell Customer ve staff hesaplarının kimlik doğrulamasını,
+JWT/refresh oturumlarını, rol kontrolünü ve immutable audit kayıtlarını yönetir.
+Kong dış öneki `/api/v1/auth` şeklindedir.
 
-## Endpoints
+## Endpointler
 
-| Method | Path | Description | Expected Status |
+| Method | Path | Erişim | Açıklama |
 |---|---|---|---|
-| `GET` | `/health` | Liveness check (Independent of Database) | `200 OK` |
-| `GET` | `/ready` | Readiness check (Executes `SELECT 1` on `identity-db`) | `200 OK` (connected) / `503 Service Unavailable` |
-| `POST` | `/customers/otp/request` | Create a five-minute customer OTP challenge | `200 OK` |
-| `POST` | `/customers/register` | Register a customer using GSM and OTP | `201 Created` |
-| `POST` | `/customers/login/otp/request` | Request a generic customer login OTP response | `200 OK` |
-| `POST` | `/customers/login` | Customer GSM and OTP login | `200 OK` |
-| `POST` | `/staff/login` | Staff email and password login | `200 OK` |
-| `POST` | `/tokens/refresh` | Rotate a refresh token | `200 OK` |
-| `POST` | `/tokens/logout` | Revoke one refresh session | `200 OK` |
-| `GET` | `/me` | Return the access-token user | `200 OK` |
-| `POST` | `/staff/accounts` | Create staff (ADMIN access token required) | `201 Created` |
+| `GET` | `/health` | Public | DB'den bağımsız liveness |
+| `GET` | `/ready` | Public | Identity PostgreSQL readiness |
+| `POST` | `/customers/otp/request` | Public | Customer registration için 5 dakikalık OTP challenge |
+| `POST` | `/customers/register` | Public | GSM ve registration OTP ile Customer oluşturma |
+| `POST` | `/customers/login/otp/request` | Public | Hesap varlığını açıklamayan login OTP isteği |
+| `POST` | `/customers/login` | Public | GSM ve login OTP ile Customer oturumu |
+| `POST` | `/staff/login` | Public | Analyst/Supervisor/Admin email-parola oturumu |
+| `POST` | `/tokens/refresh` | Refresh token | Refresh rotation |
+| `POST` | `/tokens/logout` | Refresh token | İlgili refresh oturumunu revoke etme |
+| `GET` | `/me` | Access token | Güncel aktif kullanıcı |
+| `POST` | `/staff/accounts` | ADMIN | Staff hesabı oluşturma |
+| `GET` | `/audit-logs` | ADMIN | Filtreli, sayfalı audit listesi |
 
-## Environment Variables
+Başarılı ve hatalı HTTP cevapları `success/data/error` envelope kullanır.
+`X-Request-ID` response headerında korunur.
 
-| Variable | Default | Description |
-|---|---|---|
-| `SERVICE_NAME` | `identity-service` | Service identifier |
-| `VERSION` | `0.1.0` | Service semantic version |
-| `DATABASE_URL` | `postgresql+psycopg://...` | PostgreSQL connection URL |
-| `RABBITMQ_URL` | `amqp://...` | RabbitMQ connection URL |
-| `REDIS_URL` | `redis://...` | Redis connection URL |
-| `DEMO_OTP_CODE` | `1234` | Demo-only OTP code (never stored or returned) |
-| `ENVIRONMENT` | `development` | Set to `production` to enforce startup secret checks |
-| `JWT_SECRET` | none | At least 32 random characters; required for token operations |
-| `JWT_ALGORITHM` | `HS256` | Fixed JWT signing algorithm |
-| `JWT_ISSUER` | `fraudcell-identity` | Required access-token issuer |
-| `JWT_AUDIENCE` | `fraudcell-platform` | Required access-token audience |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | `15` | Access-token lifetime |
-| `REFRESH_TOKEN_EXPIRE_DAYS` | `7` | Opaque refresh-token lifetime |
+## Demo OTP
 
-## Authentication tokens
+Bu MVP gerçek SMS göndermez. OTP challenge DB'de tutulur, beş dakika geçerlidir ve
+beş hatalı doğrulama denemesinden sonra tüketilir. Doğru kod
+`DEMO_OTP_CODE` konfigürasyonundan gelir ve API response/log içinde döndürülmez.
+Golden Demo'da bu değer `1234` olarak konfigüre edilir.
 
-Access tokens are HS256 JWTs containing `sub`, `user_id`, `role`,
-`specializations`, `regions`, `type`, `jti`, `iat`, `exp`, `iss`, and `aud`.
-They expire after 15 minutes. Refresh tokens are opaque 256-bit values that expire
-after seven days; only their SHA-256 hashes are stored.
+Customer login OTP request, GSM sistemde olmasa da aynı genel mesajı verir; hesap
+enumeration'ını azaltır. Registration ve login challenge'ları ayrı purpose ile tutulur.
 
-Every refresh rotates to a new token in one transaction. Reusing a token that was
-already rotated returns `TOKEN_REUSE_DETECTED` and revokes every active refresh
-session belonging to that user. Logout is idempotent and revokes only the supplied
-session.
+## Access ve refresh tokenları
 
-## Staff account lockout
+Access tokenları HS256 JWT'dir; `sub`, `user_id`, `role`, `specializations`,
+`regions`, `type`, `jti`, `iat`, `exp`, `iss` ve `aud` claimleri doğrulanır. Varsayılan
+ömür 15 dakikadır.
 
-Staff login counters are updated under a database row lock. The first four invalid
-password attempts return `401 AUTHENTICATION_FAILED`. The fifth returns
-`429 ACCOUNT_LOCKED`, sets a 15-minute UTC lock, and includes both
-`details.remaining_seconds` and `Retry-After`. A successful login after expiry
-clears `failed_login_count` and `locked_until`.
+Refresh tokenları opaque 256-bit değerdir; DB'de yalnızca SHA-256 hashleri tutulur ve
+varsayılan ömür yedi gündür. Her refresh tek transaction içinde yeni access/refresh
+çifti üretir ve eski tokenı rotated olarak işaretler. Rotated token tekrar kullanılırsa
+`TOKEN_REUSE_DETECTED` döner ve kullanıcının aktif refresh sessionları revoke edilir.
+Logout yalnızca verilen sessionı idempotent biçimde revoke eder.
 
-## RBAC and immutable audit logs
+## Staff parola, lockout ve RBAC
 
-`/me` accepts every authenticated active role. `POST /staff/accounts` and
-`GET /audit-logs` require the user's current database role to be `ADMIN`; stale JWT
-role claims cannot grant access. Inactive users and insufficient roles return
-`403 FORBIDDEN`, and each denial appends an `ACCESS_DENIED` audit record.
+Staff parolaları Argon2id ile hashlenir. Parola politikası en az sekiz karakter,
+bir büyük harf, bir rakam ve whitespace olmayan bir özel karakter ister.
 
-`GET /audit-logs` supports pagination plus action, actor, result, and UTC date
-filters. There are deliberately no audit update or delete endpoints. Supported
-actions are:
+İlk dört yanlış staff login `401 AUTHENTICATION_FAILED` döner. Beşinci deneme hesabı
+15 dakika kilitler ve `429 ACCOUNT_LOCKED`, `Retry-After` ile
+`details.remaining_seconds` döner. Süre sonrasındaki başarılı giriş sayaçları temizler.
 
-- `AUTH_LOGIN_SUCCESS`
-- `AUTH_LOGIN_FAILED`
-- `AUTH_ACCOUNT_LOCKED`
-- `AUTH_TOKEN_REFRESHED`
-- `AUTH_TOKEN_REUSE_DETECTED`
-- `AUTH_LOGOUT`
-- `STAFF_ACCOUNT_CREATED`
-- `ACCESS_DENIED`
-- `ROLE_CHANGED`
+`POST /staff/accounts` ve `GET /audit-logs` yalnızca DB'deki güncel rolü `ADMIN`
+olan aktif kullanıcıya açıktır. Stale JWT rol claimi yetki kazandırmaz. Audit endpointi
+read-only'dir; update/delete endpointi yoktur. Audit detail alanları password, OTP,
+authorization, token ve secret benzeri anahtarlar için hem yazarken hem serialize
+ederken temizlenir.
 
-Audit details are recursively stripped of password, OTP, authorization, token, and
-secret fields before persistence and again before API serialization.
+## Temel ayarlar
 
-## Staff password security
+| Değişken | Açıklama |
+|---|---|
+| `DATABASE_URL` | Identity PostgreSQL bağlantısı |
+| `DEMO_OTP_CODE` | Demo-only OTP; response/log içinde gösterilmez |
+| `ENVIRONMENT` | `production` olduğunda zayıf JWT secret startup'ı engeller |
+| `JWT_SECRET` | En az 32 karakterlik imzalama secret'ı |
+| `JWT_ALGORITHM` | Sabit `HS256` |
+| `JWT_ISSUER` | Varsayılan `fraudcell-identity` |
+| `JWT_AUDIENCE` | Varsayılan `fraudcell-platform` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Varsayılan `15` |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | Varsayılan `7` |
 
-Staff passwords are hashed with Argon2id and plaintext passwords are never stored or
-returned. Passwords must contain at least eight characters, one uppercase letter,
-one digit, and one non-whitespace special character.
+Gerçek değerler root `.env` veya çalışma environment'ında tutulur; repository'ye
+commit edilmez.
 
-There is intentionally no public staff-creation endpoint yet. An Admin-only HTTP
-endpoint will be added after JWT authentication and RBAC are available.
+## İlk Admin ve Golden Demo seed
 
-## Bootstrap the first Admin
-
-Set all four variables to deployment-specific values (do not commit real secrets):
-
-- `BOOTSTRAP_ADMIN_FIRST_NAME`
-- `BOOTSTRAP_ADMIN_LAST_NAME`
-- `BOOTSTRAP_ADMIN_EMAIL`
-- `BOOTSTRAP_ADMIN_PASSWORD`
-
-Run the explicit, idempotent CLI command inside the Identity Service container:
+İlk Admin için açık ve idempotent CLI:
 
 ```bash
-docker compose run --rm \
-  -e BOOTSTRAP_ADMIN_FIRST_NAME='Initial' \
-  -e BOOTSTRAP_ADMIN_LAST_NAME='Admin' \
-  -e BOOTSTRAP_ADMIN_EMAIL='admin@example.com' \
-  -e BOOTSTRAP_ADMIN_PASSWORD='<replace-with-a-strong-password>' \
-  identity-service python -m app.cli.bootstrap_admin
+python -m app.cli.bootstrap_admin
 ```
 
-## Running Locally
+Komut `BOOTSTRAP_ADMIN_FIRST_NAME`, `BOOTSTRAP_ADMIN_LAST_NAME`,
+`BOOTSTRAP_ADMIN_EMAIL` ve `BOOTSTRAP_ADMIN_PASSWORD` değerlerini environment'tan
+alır.
+
+Golden Demo hesapları:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements-dev.txt
-pytest tests/ -v
+python -m app.cli.seed_demo_users
+python -m app.cli.seed_demo_users --check
+python -m app.cli.reset_demo_identity
 ```
 
-## Golden Demo seed ve reset
+Seed, Admin, Supervisor, üç Analyst ve Customer hesabını gerçek UUID'lerle oluşturur.
+Mevcut hesapta rol/profil çakışması varsa sessizce üzerine yazmaz. Root
+`scripts/demo_prepare.py` gerekli env değerlerini container'a güvenli biçimde aktarır.
+Reset kullanıcıları silmez; demo refresh sessionlarını, OTP kayıtlarını ve staff lock
+sayaçlarını temizler.
 
-`python -m app.cli.seed_demo_users` komutu, environment'tan aldığı parolalarla sabit
-Admin, Supervisor, üç Analyst ve demo Customer hesabını servis katmanı üzerinden
-idempotent oluşturur. Gerekli değişkenler `DEMO_ADMIN_PASSWORD`,
-`DEMO_SUPERVISOR_PASSWORD`, `DEMO_ANALYST_PASSWORD`, `DEMO_CUSTOMER_GSM` ve
-`DEMO_OTP_CODE`dur. Var olan hesabın rolü veya Analyst profili beklenenden farklıysa
-komut veriyi değiştirmeden hata verir. `--check` yalnızca doğrular.
+## Migration ve test
 
-`python -m app.cli.reset_demo_identity` yalnızca sabit demo hesaplarının refresh
-sessionlarını, customer OTP kayıtlarını ve staff lock sayaçlarını temizler; kullanıcıları
-silmez. Hiçbir komut parola, hash, token veya OTP değerini çıktıya yazmaz.
+```bash
+alembic upgrade head
+alembic downgrade base
+pytest tests -q
+```
+
+Compose, `identity-migrate` başarıyla tamamlanmadan API'yi başlatmaz. Uygulama
+runtime'da `create_all` çağırmaz.
+
+## Sınırlar
+
+Gerçek SMS provider, MFA, harici KMS/secret manager, TLS termination ve dağıtık rate
+limiting bu demo kapsamında yoktur. `DEMO_OTP_CODE` production kimlik doğrulaması
+olarak kullanılamaz.

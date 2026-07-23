@@ -27,6 +27,40 @@ export interface ApiEnvelope<T> {
   };
 }
 
+export interface AIScoringResult {
+  status?: "SCORED" | "UNAVAILABLE" | string;
+  risk_score: string | number | null;
+  fraud_type: string;
+  risk_level: string;
+  decision: string;
+  risk_reasons?: string[];
+  model_version: string | null;
+  assigned_analyst_id?: string | null;
+  assignment_status?: string;
+  message?: string;
+}
+
+export interface CaseHistoryEntry {
+  id: string;
+  from_status: string | null;
+  to_status: string;
+  actor_user_id: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+export interface GamificationProfile {
+  analyst_id: string;
+  total_points: number;
+  level: string;
+  badges: string[];
+  resolved_cases: number;
+  average_points_per_case: number;
+  daily_rank: number | null;
+  weekly_rank: number | null;
+  recent_score_entries: Array<{ points: number; reason: string; occurred_at: string }>;
+}
+
 export interface TransactionItem {
   transaction: {
     id: string;
@@ -42,9 +76,11 @@ export interface TransactionItem {
     risk_level: string;
     decision: string;
     ai_status?: string;
+    model_version?: string | null;
+    risk_reasons?: string[];
   };
   case: null | RiskCase;
-  ai_result?: unknown;
+  ai_result?: AIScoringResult;
   ai_fallback?: boolean;
 }
 
@@ -59,6 +95,8 @@ export interface RiskCase {
   sla_remaining_seconds: number | null;
   sla_exceeded: boolean;
   transaction?: TransactionItem["transaction"];
+  risk_reasons?: string[];
+  history?: CaseHistoryEntry[];
   feedback: null | { id: string; rating: number; created_at: string };
 }
 

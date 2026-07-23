@@ -89,9 +89,12 @@ label {
 .status-row, .section-title, .verification div { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
 .section-title { justify-content: space-between; }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .75rem; }
-input, select { background: #0f172a; color: var(--text-primary); border: 1px solid var(--card-border); border-radius: .45rem; padding: .7rem; }
+input, select, textarea { background: #0f172a; color: var(--text-primary); border: 1px solid var(--card-border); border-radius: .45rem; padding: .7rem; }
+textarea { min-height: 88px; resize: vertical; font: inherit; }
 button { background: var(--button-bg); color: white; border: 0; border-radius: .45rem; padding: .65rem .9rem; cursor: pointer; margin-right: .4rem; }
 button:hover { background: var(--button-hover); }
+button:disabled { cursor: not-allowed; opacity: .55; }
+button:disabled:hover { background: var(--button-bg); }
 .danger { background: #b91c1c; }
 .verification { background: rgba(245,158,11,.16); border: 1px solid #f59e0b; border-radius: .75rem; padding: 1.25rem; margin-bottom: 1.25rem; }
 .verification p { margin: .65rem 0 1rem; }
@@ -99,6 +102,29 @@ button:hover { background: var(--button-hover); }
 .toast button { background: transparent; color: #111827; font-size: 1.2rem; padding: 0 0 0 1rem; }
 .transaction { display: flex; justify-content: space-between; gap: 1rem; border-top: 1px solid var(--card-border); padding: 1rem 0; align-items: center; }
 .feedback { display: flex; gap: .4rem; }
+.case-item { border-top: 1px solid var(--card-border); padding: 1rem 0; display: grid; gap: .85rem; }
+.case-item:first-of-type { border-top: 0; }
+.details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .65rem; margin: .75rem 0; }
+.details-grid span { display: grid; gap: .2rem; padding: .65rem; background: rgba(15, 23, 42, .65); border-radius: .45rem; }
+.details-grid small, .metric-card small { color: var(--text-secondary); }
+.risk-reasons { margin: .55rem 0 0 1.25rem; display: grid; gap: .3rem; }
+.timeline { margin-top: .25rem; }
+.timeline ol { margin: .6rem 0 0 1.25rem; display: grid; gap: .5rem; }
+.timeline li { padding-left: .25rem; }
+.timeline li span { display: block; color: var(--text-secondary); font-size: .8rem; margin-top: .15rem; }
+.empty-state { color: var(--text-secondary); padding: 1.25rem 0; text-align: center; }
+.empty-state.compact { padding: .5rem 0; text-align: left; }
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: .75rem; margin-bottom: 1rem; }
+.metric-card { display: grid; gap: .35rem; background: #0f172a; border: 1px solid var(--card-border); border-radius: .55rem; padding: .85rem; }
+.metric-card strong { font-size: 1.35rem; }
+.distribution-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .75rem; }
+.distribution-card { background: rgba(15, 23, 42, .65); border-radius: .55rem; padding: .85rem; }
+.distribution-card h3 { margin-bottom: .55rem; }
+.distribution-row { display: flex; justify-content: space-between; gap: .75rem; border-top: 1px solid var(--card-border); padding: .45rem 0; }
+.manual-assignment { display: grid; grid-template-columns: minmax(220px, 1fr) auto; gap: .6rem; align-items: end; }
+.score-ledger { display: grid; gap: .3rem; margin-top: .75rem; }
+.score-ledger span { color: var(--text-secondary); font-size: .85rem; }
+.ai-result h3 { margin-top: .75rem; }
 
 .header {
   display: flex;
@@ -156,6 +182,12 @@ button:hover { background: var(--button-hover); }
   background-color: rgba(245, 158, 11, 0.15);
   border: 1px solid #f59e0b;
   color: #fcd34d;
+}
+
+.banner-success {
+  background-color: var(--accent-healthy-bg);
+  border: 1px solid var(--accent-healthy);
+  color: #6ee7b7;
 }
 
 .grid {
@@ -245,6 +277,10 @@ button:hover { background: var(--button-hover); }
   color: var(--text-secondary);
 }
 
+.loading-container.compact {
+  padding: 1.25rem 0;
+}
+
 .spinner {
   width: 24px;
   height: 24px;
@@ -259,4 +295,10 @@ button:hover { background: var(--button-hover); }
   to {
     transform: rotate(360deg);
   }
+}
+
+@media (max-width: 640px) {
+  body { padding: 1rem .65rem; }
+  .header, .transaction, .section-title { align-items: flex-start; flex-direction: column; }
+  .manual-assignment { grid-template-columns: 1fr; }
 }

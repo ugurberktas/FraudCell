@@ -117,6 +117,7 @@ class Transaction(Base):
         SQLEnum(AIStatus, name="ai_status_enum"), nullable=False
     )
     model_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    risk_reasons: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     temporary_blocked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now

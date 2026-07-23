@@ -90,6 +90,7 @@ class TransactionService:
                 risk_level=values["risk_level"],
                 ai_status=(AIStatus.UNAVAILABLE if ai_fallback else AIStatus.SCORED),
                 model_version=values["model_version"],
+                risk_reasons=values["risk_reasons"],
                 temporary_blocked=(
                     values["decision"] is TransactionDecision.BLOK
                     or (
@@ -197,6 +198,7 @@ class TransactionService:
                 "decision": TransactionDecision.INCELEME,
                 "risk_level": RiskLevel.BELIRSIZ,
                 "model_version": None,
+                "risk_reasons": ["AI service unavailable"],
                 "assigned_analyst_id": None,
             }
         return ai_result.model_dump()

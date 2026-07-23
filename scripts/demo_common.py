@@ -47,12 +47,13 @@ def load_root_dotenv(required_names: tuple[str, ...]) -> None:
     dotenv = ROOT / ".env"
     if not dotenv.exists():
         raise RuntimeError("Root .env file is missing. Copy .env.example to .env and set demo secrets.")
+    allowed = set(required_names)
     for line in dotenv.read_text(encoding="utf-8").splitlines():
         parsed = _parse_dotenv_line(line)
         if not parsed:
             continue
         key, value = parsed
-        if not os.getenv(key):
+        if key in allowed and not os.getenv(key):
             os.environ[key] = value
 
 
@@ -61,6 +62,8 @@ def required_environment() -> dict[str, str]:
         "DEMO_ADMIN_PASSWORD",
         "DEMO_SUPERVISOR_PASSWORD",
         "DEMO_ANALYST_PASSWORD",
+        "DEMO_CUSTOMER_GSM",
+        "DEMO_OTP_CODE",
         "INTERNAL_SERVICE_KEY",
     )
     load_root_dotenv(names)
@@ -68,8 +71,6 @@ def required_environment() -> dict[str, str]:
     missing = [name for name, value in values.items() if not value.strip()]
     if missing:
         raise RuntimeError("Missing required environment variables:\n" + "\n".join(missing))
-    values["DEMO_CUSTOMER_GSM"] = os.getenv("DEMO_CUSTOMER_GSM", "05550000001")
-    values["DEMO_OTP_CODE"] = os.getenv("DEMO_OTP_CODE", "1234")
     return values
 
 

@@ -29,6 +29,7 @@ class FakeAIClient:
             risk_level=RiskLevel.KRITIK,
             model_version="golden-test-v1",
             assigned_analyst_id=None,
+            risk_reasons=["Yüksek tutar", "Yeni cihaz", "Gece işlemi"],
         )
         self.unavailable = unavailable
         self.request_ids: list[str] = []

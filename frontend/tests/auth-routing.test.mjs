@@ -7,4 +7,5 @@ test("root auth routing sends each role to its demo workspace", () => {
   assert.equal(routeForRole("ANALYST"), "/analyst");
   assert.equal(routeForRole("SUPERVISOR"), "/supervisor");
   assert.equal(routeForRole("ADMIN"), "/supervisor");
+  assert.equal(routeForRole("UNKNOWN"), "/login");
 });

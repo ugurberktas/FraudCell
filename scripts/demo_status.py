@@ -42,12 +42,37 @@ def main() -> int:
         if not required_workers.issubset(running):
             raise RuntimeError("Demo workers are not running")
         passed("Workers")
-        customer_login(values)
+        customer = customer_login(values)
         staff_login(DEMO_EMAILS["admin"], values["DEMO_ADMIN_PASSWORD"])
         staff_login(DEMO_EMAILS["supervisor"], values["DEMO_SUPERVISOR_PASSWORD"])
-        analyst = staff_login(DEMO_EMAILS["card"], values["DEMO_ANALYST_PASSWORD"])
-        http_json("GET", "/api/v1/game/leaderboard?period=daily&limit=10", token=analyst["access_token"])
+        analysts = [
+            staff_login(DEMO_EMAILS[key], values["DEMO_ANALYST_PASSWORD"])
+            for key in ("card", "account", "aml")
+        ]
+        for analyst in analysts:
+            profile = http_json(
+                "GET", "/api/v1/game/profiles/me", token=analyst["access_token"]
+            )
+            if (
+                profile.get("total_points") != 0
+                or profile.get("resolved_cases") != 0
+                or profile.get("badges") != []
+            ):
+                raise RuntimeError("Demo gamification profiles are not clean")
+        transactions = http_json(
+            "GET",
+            "/api/v1/transactions/transactions/me",
+            token=customer["access_token"],
+        )
+        if transactions.get("items") != []:
+            raise RuntimeError("Old demo transactions or cases still exist")
+        http_json(
+            "GET",
+            "/api/v1/game/leaderboard?period=daily&limit=10",
+            token=analysts[0]["access_token"],
+        )
         passed("Demo login")
+        passed("Clean zero-point demo state")
         print("DEMO READY")
         return 0
     except Exception as exc:

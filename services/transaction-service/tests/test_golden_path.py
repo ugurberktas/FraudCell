@@ -55,6 +55,22 @@ def test_models_create_expected_tables_and_migration_has_upgrade_downgrade(engin
     assert callable(module.downgrade)
 
 
+def test_risk_reasons_migration_follows_customer_feedback_migration():
+    migration_path = (
+        Path(__file__).parents[1]
+        / "alembic"
+        / "versions"
+        / "004_transaction_risk_reasons.py"
+    )
+    migration = migration_path.read_text(encoding="utf-8")
+    compile(migration, str(migration_path), "exec")
+    assert 'revision = "004_transaction_risk_reasons"' in migration
+    assert 'down_revision = "003_customer_feedback"' in migration
+    assert '"risk_reasons"' in migration
+    assert "def upgrade()" in migration
+    assert "def downgrade()" in migration
+
+
 def test_customer_creates_decimal_transaction_with_unique_readable_numbers(client, db):
     customer_id = uuid.uuid4()
     first = create_transaction(client, customer_id)
@@ -84,6 +100,7 @@ def test_ai_success_fields_are_persisted_and_request_id_forwarded(client, fake_a
         risk_level=RiskLevel.KRITIK,
         model_version="golden-v2",
         assigned_analyst_id=analyst_id,
+        risk_reasons=["Yeni cihaz", "Alışılmadık şehir"],
     )
     response = client.post(
         "/transactions",
@@ -95,6 +112,15 @@ def test_ai_success_fields_are_persisted_and_request_id_forwarded(client, fake_a
     assert data["ai_fallback"] is False
     assert data["transaction"]["risk_score"] == "0.94000"
     assert data["transaction"]["model_version"] == "golden-v2"
+    assert data["transaction"]["risk_reasons"] == ["Yeni cihaz", "Alışılmadık şehir"]
+    assert data["ai_result"]["risk_reasons"] == ["Yeni cihaz", "Alışılmadık şehir"]
+    stored = db.scalar(
+        select(Transaction).where(
+            Transaction.id == uuid.UUID(data["transaction"]["id"])
+        )
+    )
+    assert stored is not None
+    assert stored.risk_reasons == ["Yeni cihaz", "Alışılmadık şehir"]
     assert data["case"]["assigned_analyst_id"] == str(analyst_id)
     assert data["case"]["status"] == "ATANDI"
     assert [item["to_status"] for item in data["case"]["history"]] == [
@@ -117,6 +143,7 @@ def test_ai_failure_still_returns_201_and_creates_manual_case(client, fake_ai, d
     assert data["transaction"]["risk_score"] is None
     assert data["transaction"]["risk_level"] == "BELIRSIZ"
     assert data["transaction"]["decision"] == "INCELEME"
+    assert data["transaction"]["risk_reasons"] == ["AI service unavailable"]
     assert data["case"]["status"] == "YENI"
     assert data["case"]["assigned_analyst_id"] is None
     assert "manual review" in data["ai_result"]["message"]
@@ -178,6 +205,11 @@ def test_customer_lists_only_own_transactions_and_idor_is_forbidden(client):
     listing = client.get("/transactions/me", headers=auth(owner, "CUSTOMER"))
     ids = [item["transaction"]["id"] for item in listing.json()["data"]["items"]]
     assert ids == [own["id"]]
+    assert listing.json()["data"]["items"][0]["transaction"]["risk_reasons"] == [
+        "Yüksek tutar",
+        "Yeni cihaz",
+        "Gece işlemi",
+    ]
 
     denied = client.get(
         f"/transactions/{own['id']}", headers=auth(stranger, "CUSTOMER")
@@ -252,6 +284,11 @@ def test_valid_state_transitions_and_history_are_recorded(client, fake_ai, db):
     assert decision.status_code == 200
     data = decision.json()["data"]
     assert data["status"] == "BLOKLANDI"
+    assert data["transaction"]["risk_reasons"] == [
+        "Yüksek tutar",
+        "Yeni cihaz",
+        "Gece işlemi",
+    ]
     assert data["decided_at"] is not None
     assert data["sla_remaining_seconds"] is None
     statuses = db.scalars(

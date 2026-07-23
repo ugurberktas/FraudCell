@@ -15,7 +15,13 @@ from app.models.user import UserRole
 from app.repositories.user_repository import UserRepository
 from app.schemas.customer import CustomerRegisterRequest, normalize_turkish_gsm
 from app.schemas.staff import StaffCreate, StaffRole
-from app.security.passwords import PasswordPolicyError, validate_password_policy
+from app.security.passwords import (
+    PasswordPolicyError,
+    hash_password,
+    password_needs_rehash,
+    validate_password_policy,
+    verify_password,
+)
 from app.services.customer_service import CustomerService
 from app.services.otp_service import OtpService
 from app.services.staff_service import StaffService
@@ -61,6 +67,35 @@ def _validate_existing_staff(user, request: StaffCreate) -> None:
         )
 
 
+def _align_existing_staff_password(
+    session: Session,
+    user: User,
+    password: str,
+    *,
+    update: bool,
+) -> None:
+    password_matches = bool(
+        user.password_hash and verify_password(password, user.password_hash)
+    )
+    hash_needs_upgrade = bool(
+        password_matches
+        and user.password_hash
+        and password_needs_rehash(user.password_hash)
+    )
+    if password_matches and not hash_needs_upgrade:
+        session.rollback()
+        return
+    if not update:
+        session.rollback()
+        raise AppException(
+            "DEMO_USER_PASSWORD_MISMATCH",
+            f"Demo account password does not match configured environment: {user.email}",
+            409,
+        )
+    user.password_hash = hash_password(password)
+    session.commit()
+
+
 def seed(session: Session, *, create_missing: bool = True) -> dict[str, dict[str, str]]:
     passwords = _required_environment()
     users = UserRepository(session)
@@ -87,7 +122,12 @@ def seed(session: Session, *, create_missing: bool = True) -> dict[str, dict[str
         else:
             _validate_existing_staff(existing, request)
             user_id = existing.id
-            session.rollback()
+            _align_existing_staff_password(
+                session,
+                existing,
+                passwords[password_env],
+                update=create_missing,
+            )
         result[email] = {"id": str(user_id), "role": role.value}
 
     gsm = normalize_turkish_gsm(os.getenv("DEMO_CUSTOMER_GSM", "05550000001"))

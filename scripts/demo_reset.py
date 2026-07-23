@@ -8,8 +8,10 @@ import sys
 
 from demo_common import (
     DEMO_EMAILS,
+    ROOT,
     analyst_environment,
     compose_exec,
+    load_root_dotenv,
     lookup_users,
     marker_json,
 )
@@ -23,6 +25,8 @@ def main(argv: list[str] | None = None) -> int:
         print("Refusing reset: use --confirm RESET_DEMO", file=sys.stderr)
         return 1
     try:
+        if (ROOT / ".env").exists():
+            load_root_dotenv(("DEMO_CUSTOMER_GSM",))
         customer_gsm = __import__("os").getenv("DEMO_CUSTOMER_GSM", "05550000001")
         users = lookup_users(customer_gsm)
         if not users:

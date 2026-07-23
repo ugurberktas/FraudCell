@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -9,9 +10,38 @@ sys.path.insert(0, str(SCRIPTS))
 
 import demo_prepare
 import demo_reset
+import demo_common
 
 
 class DemoScriptTests(unittest.TestCase):
+    def test_required_environment_loads_all_six_keys_from_root_dotenv(self):
+        shell_values = {
+            "DEMO_ADMIN_PASSWORD": "shell-admin",
+            "DEMO_SUPERVISOR_PASSWORD": "shell-supervisor",
+            "DEMO_ANALYST_PASSWORD": "shell-analyst",
+            "INTERNAL_SERVICE_KEY": "shell-internal-key",
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            dotenv = Path(temp_dir) / ".env"
+            dotenv.write_text(
+                "DEMO_CUSTOMER_GSM=05550000009\n"
+                "DEMO_OTP_CODE=9876\n"
+                "DOCKER_HOST=tcp://untrusted.example:2375\n",
+                encoding="utf-8",
+            )
+            with (
+                patch.dict(os.environ, shell_values, clear=True),
+                patch.object(demo_common, "ROOT", Path(temp_dir)),
+            ):
+                values = demo_common.required_environment()
+                docker_host_loaded = "DOCKER_HOST" in os.environ
+
+        self.assertEqual(values["DEMO_CUSTOMER_GSM"], "05550000009")
+        self.assertEqual(values["DEMO_OTP_CODE"], "9876")
+        self.assertEqual(values["DEMO_ADMIN_PASSWORD"], "shell-admin")
+        self.assertEqual(values["INTERNAL_SERVICE_KEY"], "shell-internal-key")
+        self.assertFalse(docker_host_loaded)
+
     def test_reset_requires_exact_confirmation_without_side_effects(self):
         with patch.object(demo_reset, "lookup_users") as lookup:
             self.assertEqual(demo_reset.main([]), 1)
